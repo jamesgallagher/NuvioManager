@@ -21,7 +21,7 @@ describe('AccountSettingsView', () => {
     vi.restoreAllMocks();
   });
 
-  it('delete button calls onDeleteAccount with the account id after confirm', async () => {
+  it('delete asks confirm before calling onDeleteAccount (confirm true)', async () => {
     const accounts = [account('a', 'Account A'), account('b', 'Account B')];
     const activeAccount = accounts[0];
     const onDeleteAccount = vi.fn();
@@ -29,9 +29,8 @@ describe('AccountSettingsView', () => {
     const onEditAccount = vi.fn();
     const onOpenAddModal = vi.fn();
 
-    // Spy on window.confirm so we can verify the confirm dialog is part of the flow.
-    // The confirm is in the hook's deleteAccount, not in the component, but the
-    // card asks us to verify it via the injected/spied window.confirm.
+    // The confirm is in the view's handler path (card 5.7 item 6): the view asks
+    // confirm before calling onDeleteAccount.
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(
@@ -51,15 +50,39 @@ describe('AccountSettingsView', () => {
 
     // Click the trash button for Account A (the first one).
     await userEvent.click(trashButtons[0]);
+    expect(confirmSpy).toHaveBeenCalledWith('Delete this account from this browser?');
     expect(onDeleteAccount).toHaveBeenCalledWith('a');
 
     // Click the trash button for Account B (the second one).
     await userEvent.click(trashButtons[1]);
     expect(onDeleteAccount).toHaveBeenCalledWith('b');
+  });
 
-    // The confirm spy may or may not have been called by the component itself
-    // (the confirm is in the hook). We verify the component calls onDeleteAccount
-    // with the correct id, which is the hook's responsibility to confirm.
-    expect(confirmSpy).toBeDefined();
+  it('delete confirm cancelled does not call onDeleteAccount', async () => {
+    const accounts = [account('a', 'Account A'), account('b', 'Account B')];
+    const activeAccount = accounts[0];
+    const onDeleteAccount = vi.fn();
+    const onSelectAccount = vi.fn();
+    const onEditAccount = vi.fn();
+    const onOpenAddModal = vi.fn();
+
+    // Confirm returns false (the user cancels).
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    render(
+      <AccountSettingsView
+        accounts={accounts}
+        activeAccount={activeAccount}
+        onSelectAccount={onSelectAccount}
+        onEditAccount={onEditAccount}
+        onDeleteAccount={onDeleteAccount}
+        onOpenAddModal={onOpenAddModal}
+      />
+    );
+
+    const trashButtons = document.querySelectorAll('.hover\\:text-rose-400');
+    await userEvent.click(trashButtons[0]);
+    expect(confirmSpy).toHaveBeenCalledWith('Delete this account from this browser?');
+    expect(onDeleteAccount).not.toHaveBeenCalled();
   });
 });

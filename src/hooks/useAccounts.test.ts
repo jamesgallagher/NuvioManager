@@ -112,30 +112,12 @@ describe('useAccounts', () => {
     expect(result.current.accounts.find((acc) => acc.id === 'b')?.activeProfileId).toBe(1);
   });
 
-  it('deleteAccount: confirm cancelled changes nothing', () => {
+  it('deleteAccount: removes, evicts clients, selects next and persists its id (no confirm here)', () => {
     const a = account('a', 'A');
     const b = account('b', 'B');
     saveAccounts([a, b]);
     setActiveAccountId('a');
-    const confirm = vi.fn(() => false);
-    const { result } = renderHook(() => useAccounts({ confirm }));
-    act(() => {});
-
-    act(() => {
-      result.current.deleteAccount('a');
-    });
-    expect(confirm).toHaveBeenCalledWith('Delete this account from this browser?');
-    expect(result.current.accounts).toEqual([a, b]);
-    expect(result.current.activeAccount?.id).toBe('a');
-  });
-
-  it('deleteAccount: confirmed removes, evicts clients, selects next and persists its id', () => {
-    const a = account('a', 'A');
-    const b = account('b', 'B');
-    saveAccounts([a, b]);
-    setActiveAccountId('a');
-    const confirm = vi.fn(() => true);
-    const { result } = renderHook(() => useAccounts({ confirm }));
+    const { result } = renderHook(() => useAccounts());
     act(() => {});
 
     act(() => {
@@ -151,8 +133,7 @@ describe('useAccounts', () => {
     const a = account('a', 'A');
     saveAccounts([a]);
     setActiveAccountId('a');
-    const confirm = vi.fn(() => true);
-    const { result } = renderHook(() => useAccounts({ confirm }));
+    const { result } = renderHook(() => useAccounts());
     act(() => {});
 
     act(() => {
@@ -168,8 +149,7 @@ describe('useAccounts', () => {
     const b = account('b', 'B');
     saveAccounts([a, b]);
     setActiveAccountId('a');
-    const confirm = vi.fn(() => true);
-    const { result } = renderHook(() => useAccounts({ confirm }));
+    const { result } = renderHook(() => useAccounts());
     act(() => {});
 
     act(() => {

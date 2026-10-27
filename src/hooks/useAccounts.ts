@@ -10,7 +10,6 @@ import {
 import { evictClients } from '../services/supabaseClient';
 
 export interface UseAccountsOptions {
-  confirm?: (message: string) => boolean;
   /**
    * Ref to the unsaved-changes guard owned by useRemoteData. When present,
    * selectAccount/selectProfile ask the user to discard unsaved catalog
@@ -35,8 +34,7 @@ export interface UseAccountsResult {
  * keep the callbacks free of stale `accounts` closures.
  */
 export function useAccounts(options: UseAccountsOptions = {}): UseAccountsResult {
-  const { confirm, confirmDiscardRef } = options;
-  const confirmFn = confirm || window.confirm;
+  const { confirmDiscardRef } = options;
 
   const [accounts, setAccounts] = useState<ManagedAccount[]>([]);
   const [activeAccount, setActiveAccount] = useState<ManagedAccount | null>(null);
@@ -97,9 +95,10 @@ export function useAccounts(options: UseAccountsOptions = {}): UseAccountsResult
     setActiveAccountId(account.id);
   }, []);
 
+  // The delete confirmation lives in AccountSettingsView's handler path (the
+  // view asks confirm before calling this), per card 5.7 item 6.
   const deleteAccount = useCallback(
     (id: string) => {
-      if (!confirmFn('Delete this account from this browser?')) return;
       const deleted = accountsRef.current.find((a) => a.id === id);
       const remaining = accountsRef.current.filter((a) => a.id !== id);
       if (deleted) {
@@ -118,7 +117,7 @@ export function useAccounts(options: UseAccountsOptions = {}): UseAccountsResult
         setActiveAccount(next);
       }
     },
-    [confirmFn]
+    []
   );
 
   const updateAccountTokens = useCallback(
