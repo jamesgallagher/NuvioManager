@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ManagedAccount } from './types/nuvio';
 import { useAccounts } from './hooks/useAccounts';
 import { useRemoteData } from './hooks/useRemoteData';
@@ -13,6 +13,10 @@ import { NoAccountPlaceholder } from './components/common/NoAccountPlaceholder';
 import { LoadingPlaceholder } from './components/common/LoadingPlaceholder';
 
 export const App: React.FC = () => {
+  // The unsaved-changes guard is owned by useRemoteData; useAccounts needs it
+  // to guard account/profile switches. A ref bridges the two hooks.
+  const confirmDiscardRef = useRef<() => boolean>(() => true);
+
   const {
     accounts,
     activeAccount,
@@ -20,9 +24,10 @@ export const App: React.FC = () => {
     selectProfile,
     saveAccount,
     deleteAccount,
-  } = useAccounts();
+  } = useAccounts({ confirmDiscardRef });
 
   const remote = useRemoteData(activeAccount);
+  confirmDiscardRef.current = remote.confirmDiscard;
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('catalogs');
   const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
@@ -42,7 +47,7 @@ export const App: React.FC = () => {
         onSelectAccount={selectAccount}
         onOpenAddAccount={openAddAccountModal}
         onSelectProfile={selectProfile}
-        onRefresh={remote.load}
+        onRefresh={remote.refresh}
         isRefreshing={remote.isLoading}
         status={remote.status}
         statusMessage={remote.statusMessage}
@@ -76,7 +81,7 @@ export const App: React.FC = () => {
                   onUpdateTitle={remote.updateTitle}
                   onEnableAll={remote.enableAll}
                   onDisableAll={remote.disableAll}
-                  onResetOrder={remote.load}
+                  onResetOrder={remote.refresh}
                   onSaveToRemote={remote.pushCatalogs}
                 />
               )}

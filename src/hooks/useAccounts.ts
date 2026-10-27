@@ -5,7 +5,19 @@ import {
   saveAccounts,
   getActiveAccountId,
   setActiveAccountId,
+  clearActiveAccountId,
 } from '../services/accountStorage';
+import { evictClients } from '../services/supabaseClient';
+
+export interface UseAccountsOptions {
+  confirm?: (message: string) => boolean;
+  /**
+   * Ref to the unsaved-changes guard owned by useRemoteData. When present,
+   * selectAccount/selectProfile ask the user to discard unsaved catalog
+   * changes before switching.
+   */
+  confirmDiscardRef?: React.RefObject<() => boolean>;
+}
 
 export interface UseAccountsResult {
   accounts: ManagedAccount[];
@@ -22,7 +34,10 @@ export interface UseAccountsResult {
  * change through accountStorage. Functional updates (and refs for reads)
  * keep the callbacks free of stale `accounts` closures.
  */
-export function useAccounts(): UseAccountsResult {
+export function useAccounts(options: UseAccountsOptions = {}): UseAccountsResult {
+  const { confirm, confirmDiscardRef } = options;
+  const confirmFn = confirm || window.confirm;
+
   const [accounts, setAccounts] = useState<ManagedAccount[]>([]);
   const [activeAccount, setActiveAccount] = useState<ManagedAccount | null>(null);
 
@@ -41,25 +56,33 @@ export function useAccounts(): UseAccountsResult {
     setActiveAccount(current);
   }, []);
 
-  const selectAccount = useCallback((id: string) => {
-    const acc = accountsRef.current.find((a) => a.id === id);
-    if (acc) {
-      setActiveAccount(acc);
-      setActiveAccountId(acc.id);
-    }
-  }, []);
+  const selectAccount = useCallback(
+    (id: string) => {
+      if (confirmDiscardRef && !confirmDiscardRef.current()) return;
+      const acc = accountsRef.current.find((a) => a.id === id);
+      if (acc) {
+        setActiveAccount(acc);
+        setActiveAccountId(acc.id);
+      }
+    },
+    [confirmDiscardRef]
+  );
 
-  const selectProfile = useCallback((profileId: number) => {
-    const active = activeAccountRef.current;
-    if (!active) return;
-    const updated = { ...active, activeProfileId: profileId };
-    setActiveAccount(updated);
-    setAccounts((prev) => {
-      const next = prev.map((a) => (a.id === updated.id ? updated : a));
-      saveAccounts(next);
-      return next;
-    });
-  }, []);
+  const selectProfile = useCallback(
+    (profileId: number) => {
+      if (confirmDiscardRef && !confirmDiscardRef.current()) return;
+      const active = activeAccountRef.current;
+      if (!active) return;
+      const updated = { ...active, activeProfileId: profileId };
+      setActiveAccount(updated);
+      setAccounts((prev) => {
+        const next = prev.map((a) => (a.id === updated.id ? updated : a));
+        saveAccounts(next);
+        return next;
+      });
+    },
+    [confirmDiscardRef]
+  );
 
   const saveAccount = useCallback((account: ManagedAccount) => {
     setAccounts((prev) => {
@@ -71,17 +94,32 @@ export function useAccounts(): UseAccountsResult {
       return next;
     });
     setActiveAccount(account);
+    setActiveAccountId(account.id);
   }, []);
 
-  const deleteAccount = useCallback((id: string) => {
-    const remaining = accountsRef.current.filter((a) => a.id !== id);
-    saveAccounts(remaining);
-    setAccounts(remaining);
-    const active = activeAccountRef.current;
-    if (active?.id === id) {
-      setActiveAccount(remaining[0] || null);
-    }
-  }, []);
+  const deleteAccount = useCallback(
+    (id: string) => {
+      if (!confirmFn('Delete this account from this browser?')) return;
+      const deleted = accountsRef.current.find((a) => a.id === id);
+      const remaining = accountsRef.current.filter((a) => a.id !== id);
+      if (deleted) {
+        evictClients(deleted.supabaseUrl);
+      }
+      saveAccounts(remaining);
+      setAccounts(remaining);
+      const active = activeAccountRef.current;
+      if (active?.id === id) {
+        const next = remaining[0] || null;
+        if (next) {
+          setActiveAccountId(next.id);
+        } else {
+          clearActiveAccountId();
+        }
+        setActiveAccount(next);
+      }
+    },
+    [confirmFn]
+  );
 
   const updateAccountTokens = useCallback(
     (accountId: string, accessToken: string, refreshToken: string) => {

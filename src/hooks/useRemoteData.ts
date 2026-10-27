@@ -11,6 +11,7 @@ import {
   enrichCatalogs,
   buildSyncPayload,
   fetchAddonManifest,
+  normalizeManifestUrl,
 } from '../services/catalogService';
 import { fetchRemoteAddons, pushRemoteAddons } from '../services/addonService';
 import { catalogSignature } from '../services/catalogSignature';
@@ -18,6 +19,10 @@ import { toErrorMessage } from '../services/errors';
 import { clientFor } from '../services/clientFor';
 
 export type RemoteStatus = 'idle' | 'syncing' | 'error' | 'success';
+
+export interface UseRemoteDataOptions {
+  confirm?: (message: string) => boolean;
+}
 
 export interface UseRemoteDataResult {
   catalogs: EnrichedCatalogRow[];
@@ -29,6 +34,7 @@ export interface UseRemoteDataResult {
   status: RemoteStatus;
   statusMessage: string;
   load: () => Promise<void>;
+  refresh: () => void;
   pushCatalogs: () => Promise<void>;
   addAddon: (url: string) => Promise<void>;
   toggleAddon: (url: string) => Promise<void>;
@@ -39,6 +45,7 @@ export interface UseRemoteDataResult {
   enableAll: () => void;
   disableAll: () => void;
   hasUnsavedChanges: boolean;
+  confirmDiscard: () => boolean;
 }
 
 /**
@@ -47,7 +54,12 @@ export interface UseRemoteDataResult {
  * editor operations (move/toggle/title/enable/disable) live here too, since
  * they operate on the `catalogs` state owned by this hook.
  */
-export function useRemoteData(activeAccount: ManagedAccount | null): UseRemoteDataResult {
+export function useRemoteData(
+  activeAccount: ManagedAccount | null,
+  options: UseRemoteDataOptions = {}
+): UseRemoteDataResult {
+  const confirmFn = options.confirm || window.confirm;
+
   const [catalogs, setCatalogs] = useState<EnrichedCatalogRow[]>([]);
   const [addons, setAddons] = useState<InstalledAddon[]>([]);
   const [remotePayload, setRemotePayload] = useState<SyncHomeCatalogPayload | null>(null);
@@ -67,136 +79,227 @@ export function useRemoteData(activeAccount: ManagedAccount | null): UseRemoteDa
   const remotePayloadRef = useRef(remotePayload);
   remotePayloadRef.current = remotePayload;
 
-  const load = useCallback(async () => {
-    const account = activeAccountRef.current;
-    if (!account) return;
+  // Stale-response protection: each load call increments this counter.
+  const requestIdRef = useRef(0);
 
-    setIsLoading(true);
-    setStatus('idle');
-    try {
-      const client = clientFor(account);
+  // Serial queue for addon mutations (a promise chain).
+  const addonQueueRef = useRef<Promise<void>>(Promise.resolve());
 
-      // 1. Fetch installed addons
-      let fetchedAddons: InstalledAddon[] = [];
-      try {
-        fetchedAddons = await fetchRemoteAddons(client, account.activeProfileId, account.userId);
-      } catch (e) {
-        console.warn('Could not load addons from table, using fallback defaults:', e);
-        try {
-          const defaultManifest = await fetchAddonManifest('https://v3-cinemeta.strem.io/manifest.json');
-          fetchedAddons = [
-            {
-              url: 'https://v3-cinemeta.strem.io/manifest.json',
-              name: 'Cinemeta',
-              enabled: true,
-              sort_order: 0,
-              manifest: defaultManifest,
-            },
-          ];
-        } catch {
-          // No fallback manifest available; leave fetchedAddons empty.
-        }
-      }
-      setAddons(fetchedAddons);
+  // 4-second success timer.
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-      // 2. Fetch remote catalog layout
-      const payload = await pullRemoteCatalogSettings(client, account.activeProfileId);
-      setRemotePayload(payload);
+  const hasUnsavedChanges =
+    baselineSignature !== '' && catalogSignature(catalogs) !== baselineSignature;
+  const hasUnsavedChangesRef = useRef(false);
+  hasUnsavedChangesRef.current = hasUnsavedChanges;
 
-      // 3. Synthesize enriched rows
-      const enriched = enrichCatalogs(fetchedAddons, payload);
-      setCatalogs(enriched);
-      setBaselineSignature(catalogSignature(enriched));
-
-      setStatus('success');
-      setStatusMessage('Catalogs Loaded');
-    } catch (err) {
-      console.error('Failed to load remote data', err);
-      setStatus('error');
-      setStatusMessage(toErrorMessage(err, 'Error fetching from Supabase'));
-    } finally {
-      setIsLoading(false);
+  // Clear the success timer (on unmount and when a new status is set).
+  const clearSuccessTimer = useCallback(() => {
+    if (successTimerRef.current !== null) {
+      clearTimeout(successTimerRef.current);
+      successTimerRef.current = null;
     }
   }, []);
 
-  // Auto-load when the account or profile changes.
+  // Set a new status and clear any pending success timer first, so a later
+  // error is not wiped by the 4-second timer.
+  const setStatusWithTimerClear = useCallback(
+    (newStatus: RemoteStatus) => {
+      clearSuccessTimer();
+      setStatus(newStatus);
+    },
+    [clearSuccessTimer]
+  );
+
+  // The unsaved-changes guard. Returns true when it is safe to proceed.
+  const confirmDiscard = useCallback((): boolean => {
+    if (!hasUnsavedChangesRef.current) return true;
+    return confirmFn('Discard unsaved catalog changes?');
+  }, [confirmFn]);
+
+  // beforeunload listener while there are unsaved changes.
+  useEffect(() => {
+    if (hasUnsavedChanges) {
+      const handler = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = '';
+      };
+      window.addEventListener('beforeunload', handler);
+      return () => {
+        window.removeEventListener('beforeunload', handler);
+      };
+    }
+  }, [hasUnsavedChanges]);
+
+  // Clear the success timer on unmount.
+  useEffect(() => {
+    return () => {
+      clearSuccessTimer();
+    };
+  }, [clearSuccessTimer]);
+
+  const load = useCallback(async () => {
+    const account = activeAccountRef.current;
+    if (!account) return;
+    const requestId = ++requestIdRef.current;
+    setIsLoading(true);
+    setStatusWithTimerClear('idle');
+    try {
+      const client = clientFor(account);
+      const fetchedAddons = await fetchRemoteAddons(client, account.activeProfileId, account.userId);
+      if (requestId !== requestIdRef.current) return; // stale
+      setAddons(fetchedAddons);
+      const payload = await pullRemoteCatalogSettings(client, account.activeProfileId);
+      if (requestId !== requestIdRef.current) return; // stale
+      setRemotePayload(payload);
+      const enriched = enrichCatalogs(fetchedAddons, payload);
+      setCatalogs(enriched);
+      setBaselineSignature(catalogSignature(enriched));
+      setStatusWithTimerClear('success');
+      setStatusMessage('Catalogs Loaded');
+    } catch (err) {
+      if (requestId !== requestIdRef.current) return; // stale
+      console.error('Failed to load remote data', err);
+      setStatusWithTimerClear('error');
+      setStatusMessage(toErrorMessage(err, 'Error fetching from Supabase'));
+    } finally {
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, [setStatusWithTimerClear]);
+
+  // Auto-load when the account or profile changes; clear old data first so the
+  // loading view shows and the previous account's rows are never visible.
+  // Depending on the whole account also invalidates any in-flight load.
   useEffect(() => {
     if (activeAccount) {
+      setCatalogs([]);
+      setAddons([]);
+      setRemotePayload(null);
+      setBaselineSignature('');
       load();
     }
   }, [activeAccount, load]);
 
+  // User-triggered load (Refresh / Reset) with the unsaved-changes guard.
+  const refresh = useCallback(() => {
+    if (!confirmDiscard()) return;
+    load();
+  }, [confirmDiscard, load]);
+
   const pushCatalogs = useCallback(async () => {
     const account = activeAccountRef.current;
     if (!account) return;
-
     setIsSaving(true);
-    setStatus('syncing');
+    setStatusWithTimerClear('syncing');
     try {
       const client = clientFor(account);
       const payload = buildSyncPayload(catalogsRef.current, remotePayloadRef.current);
       await pushRemoteCatalogSettings(client, account.activeProfileId, payload);
-
       setRemotePayload(payload);
       setBaselineSignature(catalogSignature(catalogsRef.current));
-      setStatus('success');
+      setStatusWithTimerClear('success');
       setStatusMessage('Pushed to TV successfully!');
-      setTimeout(() => setStatus('idle'), 4000);
+      successTimerRef.current = setTimeout(() => {
+        setStatus('idle');
+        successTimerRef.current = null;
+      }, 4000);
     } catch (err) {
       console.error('Failed to push catalog settings:', err);
-      setStatus('error');
+      setStatusWithTimerClear('error');
       setStatusMessage(toErrorMessage(err, 'Push failed'));
     } finally {
       setIsSaving(false);
     }
-  }, []);
+  }, [setStatusWithTimerClear]);
 
+  // Addon mutations run through a single serial queue so two quick actions
+  // produce two ordered pushes built from the latest list, never overlapping.
   const addAddon = useCallback(
-    async (url: string) => {
+    (url: string): Promise<void> => {
       const account = activeAccountRef.current;
-      if (!account) return;
-      const manifest = await fetchAddonManifest(url);
-      const newAddon: InstalledAddon = {
-        url,
-        name: manifest.name,
-        enabled: true,
-        sort_order: addonsRef.current.length,
-        manifest,
-      };
-      const updated = [...addonsRef.current, newAddon];
-      setAddons(updated);
-
-      const client = clientFor(account);
-      await pushRemoteAddons(client, account.activeProfileId, updated);
-      load();
+      if (!account) return Promise.resolve();
+      const promise = addonQueueRef.current.then(async () => {
+        const normalized = normalizeManifestUrl(url);
+        const existing = addonsRef.current.find((a) => normalizeManifestUrl(a.url) === normalized);
+        if (existing) {
+          throw new Error('This addon is already installed');
+        }
+        const manifest = await fetchAddonManifest(url);
+        const previous = addonsRef.current;
+        const newAddon: InstalledAddon = {
+          url: normalized,
+          name: manifest.name,
+          enabled: true,
+          sort_order: previous.length,
+          manifest,
+        };
+        const updated = [...previous, newAddon];
+        setAddons(updated); // optimistic
+        try {
+          const client = clientFor(account);
+          await pushRemoteAddons(client, account.activeProfileId, updated);
+          load();
+        } catch (err) {
+          setAddons(previous); // rollback
+          setStatusWithTimerClear('error');
+          setStatusMessage(toErrorMessage(err, 'Failed to add addon'));
+        }
+      });
+      addonQueueRef.current = promise.catch(() => {}); // keep the chain alive
+      return promise;
     },
-    [load]
+    [load, setStatusWithTimerClear]
   );
 
-  const toggleAddon = useCallback(async (url: string) => {
-    const account = activeAccountRef.current;
-    if (!account) return;
-    const updated = addonsRef.current.map((a) =>
-      a.url === url ? { ...a, enabled: !a.enabled } : a
-    );
-    setAddons(updated);
-
-    const client = clientFor(account);
-    await pushRemoteAddons(client, account.activeProfileId, updated);
-  }, []);
+  const toggleAddon = useCallback(
+    (url: string): Promise<void> => {
+      const account = activeAccountRef.current;
+      if (!account) return Promise.resolve();
+      const promise = addonQueueRef.current.then(async () => {
+        const previous = addonsRef.current;
+        const updated = previous.map((a) =>
+          a.url === url ? { ...a, enabled: !a.enabled } : a
+        );
+        setAddons(updated); // optimistic
+        try {
+          const client = clientFor(account);
+          await pushRemoteAddons(client, account.activeProfileId, updated);
+        } catch (err) {
+          setAddons(previous); // rollback
+          setStatusWithTimerClear('error');
+          setStatusMessage(toErrorMessage(err, 'Failed to toggle addon'));
+        }
+      });
+      addonQueueRef.current = promise.catch(() => {}); // no unhandled rejection
+      return promise;
+    },
+    [setStatusWithTimerClear]
+  );
 
   const removeAddon = useCallback(
-    async (url: string) => {
+    (url: string): Promise<void> => {
       const account = activeAccountRef.current;
-      if (!account) return;
-      const updated = addonsRef.current.filter((a) => a.url !== url);
-      setAddons(updated);
-
-      const client = clientFor(account);
-      await pushRemoteAddons(client, account.activeProfileId, updated);
-      load();
+      if (!account) return Promise.resolve();
+      const promise = addonQueueRef.current.then(async () => {
+        const previous = addonsRef.current;
+        const updated = previous.filter((a) => a.url !== url);
+        setAddons(updated); // optimistic
+        try {
+          const client = clientFor(account);
+          await pushRemoteAddons(client, account.activeProfileId, updated);
+          load();
+        } catch (err) {
+          setAddons(previous); // rollback
+          setStatusWithTimerClear('error');
+          setStatusMessage(toErrorMessage(err, 'Failed to remove addon'));
+        }
+      });
+      addonQueueRef.current = promise.catch(() => {}); // no unhandled rejection
+      return promise;
     },
-    [load]
+    [load, setStatusWithTimerClear]
   );
 
   // Catalog editor operations
@@ -229,9 +332,6 @@ export function useRemoteData(activeAccount: ManagedAccount | null): UseRemoteDa
     setCatalogs((prev) => prev.map((c) => ({ ...c, enabled: false })));
   }, []);
 
-  const hasUnsavedChanges =
-    baselineSignature !== '' && catalogSignature(catalogs) !== baselineSignature;
-
   return {
     catalogs,
     addons,
@@ -242,6 +342,7 @@ export function useRemoteData(activeAccount: ManagedAccount | null): UseRemoteDa
     status,
     statusMessage,
     load,
+    refresh,
     pushCatalogs,
     addAddon,
     toggleAddon,
@@ -252,5 +353,6 @@ export function useRemoteData(activeAccount: ManagedAccount | null): UseRemoteDa
     enableAll,
     disableAll,
     hasUnsavedChanges,
+    confirmDiscard,
   };
 }
