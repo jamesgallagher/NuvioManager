@@ -143,8 +143,6 @@ describe('useRemoteData', () => {
 
   it('4. stale response: B wins, A ignored, isLoading false', async () => {
     // Account A (slow) and account B (fast).
-    const rowsA: EnrichedCatalogRow[] = [row('a', true, 0)];
-    const rowsB: EnrichedCatalogRow[] = [row('b', true, 0)];
     const payloadA: SyncHomeCatalogPayload = { hide_unreleased_content: false, items: [] };
     const payloadB: SyncHomeCatalogPayload = { hide_unreleased_content: false, items: [] };
 
@@ -158,7 +156,7 @@ describe('useRemoteData', () => {
     });
 
     // fetchRemoteAddons: A slow, B fast.
-    vi.mocked(fetchRemoteAddons).mockImplementation(async (client, profileId) => {
+    vi.mocked(fetchRemoteAddons).mockImplementation(async (_client, profileId) => {
       // account A uses profileId 1, account B uses profileId 2 (we'll set B's profile to 2)
       if (profileId === 1) {
         await promiseA;
@@ -177,7 +175,6 @@ describe('useRemoteData', () => {
     });
 
     const accountA = account('a');
-    const accountB = { ...account('b'), activeProfileId: 2 };
 
     const { result } = renderHook(({ acc }) => useRemoteData(acc), { initialProps: { acc: accountA } });
     await act(async () => {});
@@ -539,7 +536,7 @@ describe('useRemoteData', () => {
 
     const updateAccountTokens = vi.fn();
     // withSession: first call throws auth error, second call succeeds.
-    vi.mocked(withSession).mockImplementation(async (_account, fn, onAccountUpdated) => {
+    vi.mocked(withSession).mockImplementation(async (_account, fn, _onAccountUpdated) => {
       const client = {} as unknown;
       const result = await fn(client as never);
       return result;
