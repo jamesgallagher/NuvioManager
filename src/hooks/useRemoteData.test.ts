@@ -604,6 +604,64 @@ describe('useRemoteData', () => {
     unmount();
     vi.useRealTimers();
   });
+
+  it('15. two remote calls in one load() refresh once; the second uses the new tokens', async () => {
+    const accountsReceived: ManagedAccount[] = [];
+    let refreshCount = 0;
+
+    // Simulate withSession: capture the account each call receives, run fn,
+    // and if fn throws an auth error, refresh (call onAccountUpdated) and retry once.
+    vi.mocked(withSession).mockImplementation(async (account, fn, onAccountUpdated) => {
+      accountsReceived.push(account);
+      try {
+        return await fn({} as never);
+      } catch (err) {
+        const isAuthErr = err instanceof Error && /jwt expired/i.test(err.message);
+        if (isAuthErr && account.refreshToken) {
+          const refreshed: ManagedAccount = {
+            ...account,
+            accessToken: 'refreshed-access-token',
+            refreshToken: 'refreshed-refresh-token',
+          };
+          onAccountUpdated(refreshed);
+          refreshCount++;
+          return await fn({} as never);
+        }
+        throw err;
+      }
+    });
+
+    // The first remote call (fetchRemoteAddons) throws an auth error on the
+    // initial attempt, then succeeds on the retry.
+    let fetchCalls = 0;
+    vi.mocked(fetchRemoteAddons).mockImplementation(async () => {
+      fetchCalls++;
+      if (fetchCalls === 1) {
+        throw new Error('jwt expired');
+      }
+      return [
+        { url: 'https://addon-1.example.invalid/manifest.json', name: 'Addon 1', enabled: true, sort_order: 0 },
+      ];
+    });
+    vi.mocked(pullRemoteCatalogSettings).mockResolvedValue({ hide_unreleased_content: false, items: [] });
+    vi.mocked(enrichCatalogs).mockReturnValue([row('a', true, 0)]);
+
+    const acc = account('a');
+    const { result } = renderHook(() => useRemoteData(acc));
+    await act(async () => {});
+
+    // The first withSession call (fetchRemoteAddons) received the original account.
+    expect(accountsReceived[0].accessToken).toBe('test-access-token');
+    // The second withSession call (pullRemoteCatalogSettings) received the refreshed
+    // account, not the stale snapshot captured at the start of load().
+    expect(accountsReceived[1].accessToken).toBe('refreshed-access-token');
+    expect(accountsReceived[1].refreshToken).toBe('refreshed-refresh-token');
+    // The refresh happened exactly once.
+    expect(refreshCount).toBe(1);
+    // Both remote calls ran and the load succeeded.
+    expect(pullRemoteCatalogSettings).toHaveBeenCalledTimes(1);
+    expect(result.current.status).toBe('success');
+  });
 });
 
 // Integration tests: useAccounts + useRemoteData wired together (mirrors App.tsx),

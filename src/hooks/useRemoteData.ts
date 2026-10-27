@@ -88,6 +88,15 @@ export function useRemoteData(
   const remotePayloadRef = useRef(remotePayload);
   remotePayloadRef.current = remotePayload;
 
+  // Called by withSession when a refresh happens. Updates the account ref
+  // synchronously so a second remote call in the same load reads the refreshed
+  // tokens, not the stale snapshot captured at the start of the call. Also
+  // forwards to the App's handler (useAccounts' updateAccountTokens).
+  const handleAccountUpdated = useCallback((account: ManagedAccount) => {
+    activeAccountRef.current = account;
+    onAccountUpdated(account);
+  }, [onAccountUpdated]);
+
   // Stale-response protection: each load call increments this counter.
   const requestIdRef = useRef(0);
 
@@ -148,23 +157,27 @@ export function useRemoteData(
   }, [clearSuccessTimer]);
 
   const load = useCallback(async () => {
-    const account = activeAccountRef.current;
-    if (!account) return;
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setStatusWithTimerClear('idle');
     try {
+      const account = activeAccountRef.current;
+      if (!account) return;
       const fetchedAddons = await withSession(
         account,
         (client) => fetchRemoteAddons(client, account.activeProfileId, account.userId),
-        onAccountUpdated
+        handleAccountUpdated
       );
       if (requestId !== requestIdRef.current) return; // stale
       setAddons(fetchedAddons);
+      // Read the account again: the first call may have refreshed the session,
+      // so the second call must use the refreshed tokens, not the stale snapshot.
+      const accountAfterAddons = activeAccountRef.current;
+      if (!accountAfterAddons) return;
       const payload = await withSession(
-        account,
-        (client) => pullRemoteCatalogSettings(client, account.activeProfileId),
-        onAccountUpdated
+        accountAfterAddons,
+        (client) => pullRemoteCatalogSettings(client, accountAfterAddons.activeProfileId),
+        handleAccountUpdated
       );
       if (requestId !== requestIdRef.current) return; // stale
       setRemotePayload(payload);
@@ -183,7 +196,7 @@ export function useRemoteData(
         setIsLoading(false);
       }
     }
-  }, [onAccountUpdated, setStatusWithTimerClear]);
+  }, [handleAccountUpdated, setStatusWithTimerClear]);
 
   // Auto-load when the account id or profile id changes; clear old data first so
   // the loading view shows and the previous account's rows are never visible.
@@ -217,7 +230,7 @@ export function useRemoteData(
       await withSession(
         account,
         (client) => pushRemoteCatalogSettings(client, account.activeProfileId, payload),
-        onAccountUpdated
+        handleAccountUpdated
       );
       setRemotePayload(payload);
       setBaselineSignature(catalogSignature(catalogsRef.current));
@@ -234,15 +247,15 @@ export function useRemoteData(
     } finally {
       setIsSaving(false);
     }
-  }, [onAccountUpdated, setStatusWithTimerClear]);
+  }, [handleAccountUpdated, setStatusWithTimerClear]);
 
   // Addon mutations run through a single serial queue so two quick actions
   // produce two ordered pushes built from the latest list, never overlapping.
   const addAddon = useCallback(
     (url: string): Promise<void> => {
-      const account = activeAccountRef.current;
-      if (!account) return Promise.resolve();
       const promise = addonQueueRef.current.then(async () => {
+        const account = activeAccountRef.current;
+        if (!account) return;
         const normalized = normalizeManifestUrl(url);
         const existing = addonsRef.current.find((a) => normalizeManifestUrl(a.url) === normalized);
         if (existing) {
@@ -263,7 +276,7 @@ export function useRemoteData(
           await withSession(
             account,
             (client) => pushRemoteAddons(client, account.activeProfileId, updated),
-            onAccountUpdated
+            handleAccountUpdated
           );
           load();
         } catch (err) {
@@ -275,14 +288,14 @@ export function useRemoteData(
       addonQueueRef.current = promise.catch(() => {}); // keep the chain alive
       return promise;
     },
-    [load, onAccountUpdated, setStatusWithTimerClear]
+    [load, handleAccountUpdated, setStatusWithTimerClear]
   );
 
   const toggleAddon = useCallback(
     (url: string): Promise<void> => {
-      const account = activeAccountRef.current;
-      if (!account) return Promise.resolve();
       const promise = addonQueueRef.current.then(async () => {
+        const account = activeAccountRef.current;
+        if (!account) return;
         const previous = addonsRef.current;
         const updated = previous.map((a) =>
           a.url === url ? { ...a, enabled: !a.enabled } : a
@@ -292,7 +305,7 @@ export function useRemoteData(
           await withSession(
             account,
             (client) => pushRemoteAddons(client, account.activeProfileId, updated),
-            onAccountUpdated
+            handleAccountUpdated
           );
         } catch (err) {
           setAddons(previous); // rollback
@@ -303,14 +316,14 @@ export function useRemoteData(
       addonQueueRef.current = promise.catch(() => {}); // no unhandled rejection
       return promise;
     },
-    [onAccountUpdated, setStatusWithTimerClear]
+    [handleAccountUpdated, setStatusWithTimerClear]
   );
 
   const removeAddon = useCallback(
     (url: string): Promise<void> => {
-      const account = activeAccountRef.current;
-      if (!account) return Promise.resolve();
       const promise = addonQueueRef.current.then(async () => {
+        const account = activeAccountRef.current;
+        if (!account) return;
         const previous = addonsRef.current;
         const updated = previous.filter((a) => a.url !== url);
         setAddons(updated); // optimistic
@@ -318,7 +331,7 @@ export function useRemoteData(
           await withSession(
             account,
             (client) => pushRemoteAddons(client, account.activeProfileId, updated),
-            onAccountUpdated
+            handleAccountUpdated
           );
           load();
         } catch (err) {
@@ -330,7 +343,7 @@ export function useRemoteData(
       addonQueueRef.current = promise.catch(() => {}); // no unhandled rejection
       return promise;
     },
-    [load, onAccountUpdated, setStatusWithTimerClear]
+    [load, handleAccountUpdated, setStatusWithTimerClear]
   );
 
   // Catalog editor operations
