@@ -24,9 +24,17 @@ export const App: React.FC = () => {
     selectProfile,
     saveAccount,
     deleteAccount,
+    updateAccountTokens,
   } = useAccounts({ confirmDiscardRef });
 
-  const remote = useRemoteData(activeAccount);
+  const remote = useRemoteData(activeAccount, {
+    onAccountUpdated: (account) =>
+      updateAccountTokens(
+        account.id,
+        account.accessToken ?? '',
+        account.refreshToken ?? ''
+      ),
+  });
   confirmDiscardRef.current = remote.confirmDiscard;
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('catalogs');

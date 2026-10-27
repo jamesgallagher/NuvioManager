@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   EnrichedCatalogRow,
   InstalledAddon,
@@ -16,12 +16,17 @@ import {
 import { fetchRemoteAddons, pushRemoteAddons } from '../services/addonService';
 import { catalogSignature } from '../services/catalogSignature';
 import { toErrorMessage } from '../services/errors';
-import { clientFor } from '../services/clientFor';
+import { withSession } from '../services/session';
 
 export type RemoteStatus = 'idle' | 'syncing' | 'error' | 'success';
 
 export interface UseRemoteDataOptions {
   confirm?: (message: string) => boolean;
+  /**
+   * Called when withSession refreshes the account's tokens. App wires this
+   * to useAccounts' updateAccountTokens.
+   */
+  onAccountUpdated?: (account: ManagedAccount) => void;
 }
 
 export interface UseRemoteDataResult {
@@ -59,6 +64,10 @@ export function useRemoteData(
   options: UseRemoteDataOptions = {}
 ): UseRemoteDataResult {
   const confirmFn = options.confirm || window.confirm;
+  const onAccountUpdated = useMemo(
+    () => options.onAccountUpdated || (() => {}),
+    [options.onAccountUpdated]
+  );
 
   const [catalogs, setCatalogs] = useState<EnrichedCatalogRow[]>([]);
   const [addons, setAddons] = useState<InstalledAddon[]>([]);
@@ -145,11 +154,18 @@ export function useRemoteData(
     setIsLoading(true);
     setStatusWithTimerClear('idle');
     try {
-      const client = clientFor(account);
-      const fetchedAddons = await fetchRemoteAddons(client, account.activeProfileId, account.userId);
+      const fetchedAddons = await withSession(
+        account,
+        (client) => fetchRemoteAddons(client, account.activeProfileId, account.userId),
+        onAccountUpdated
+      );
       if (requestId !== requestIdRef.current) return; // stale
       setAddons(fetchedAddons);
-      const payload = await pullRemoteCatalogSettings(client, account.activeProfileId);
+      const payload = await withSession(
+        account,
+        (client) => pullRemoteCatalogSettings(client, account.activeProfileId),
+        onAccountUpdated
+      );
       if (requestId !== requestIdRef.current) return; // stale
       setRemotePayload(payload);
       const enriched = enrichCatalogs(fetchedAddons, payload);
@@ -167,7 +183,7 @@ export function useRemoteData(
         setIsLoading(false);
       }
     }
-  }, [setStatusWithTimerClear]);
+  }, [onAccountUpdated, setStatusWithTimerClear]);
 
   // Auto-load when the account or profile changes; clear old data first so the
   // loading view shows and the previous account's rows are never visible.
@@ -194,9 +210,12 @@ export function useRemoteData(
     setIsSaving(true);
     setStatusWithTimerClear('syncing');
     try {
-      const client = clientFor(account);
       const payload = buildSyncPayload(catalogsRef.current, remotePayloadRef.current);
-      await pushRemoteCatalogSettings(client, account.activeProfileId, payload);
+      await withSession(
+        account,
+        (client) => pushRemoteCatalogSettings(client, account.activeProfileId, payload),
+        onAccountUpdated
+      );
       setRemotePayload(payload);
       setBaselineSignature(catalogSignature(catalogsRef.current));
       setStatusWithTimerClear('success');
@@ -212,7 +231,7 @@ export function useRemoteData(
     } finally {
       setIsSaving(false);
     }
-  }, [setStatusWithTimerClear]);
+  }, [onAccountUpdated, setStatusWithTimerClear]);
 
   // Addon mutations run through a single serial queue so two quick actions
   // produce two ordered pushes built from the latest list, never overlapping.
@@ -238,8 +257,11 @@ export function useRemoteData(
         const updated = [...previous, newAddon];
         setAddons(updated); // optimistic
         try {
-          const client = clientFor(account);
-          await pushRemoteAddons(client, account.activeProfileId, updated);
+          await withSession(
+            account,
+            (client) => pushRemoteAddons(client, account.activeProfileId, updated),
+            onAccountUpdated
+          );
           load();
         } catch (err) {
           setAddons(previous); // rollback
@@ -250,7 +272,7 @@ export function useRemoteData(
       addonQueueRef.current = promise.catch(() => {}); // keep the chain alive
       return promise;
     },
-    [load, setStatusWithTimerClear]
+    [load, onAccountUpdated, setStatusWithTimerClear]
   );
 
   const toggleAddon = useCallback(
@@ -264,8 +286,11 @@ export function useRemoteData(
         );
         setAddons(updated); // optimistic
         try {
-          const client = clientFor(account);
-          await pushRemoteAddons(client, account.activeProfileId, updated);
+          await withSession(
+            account,
+            (client) => pushRemoteAddons(client, account.activeProfileId, updated),
+            onAccountUpdated
+          );
         } catch (err) {
           setAddons(previous); // rollback
           setStatusWithTimerClear('error');
@@ -275,7 +300,7 @@ export function useRemoteData(
       addonQueueRef.current = promise.catch(() => {}); // no unhandled rejection
       return promise;
     },
-    [setStatusWithTimerClear]
+    [onAccountUpdated, setStatusWithTimerClear]
   );
 
   const removeAddon = useCallback(
@@ -287,8 +312,11 @@ export function useRemoteData(
         const updated = previous.filter((a) => a.url !== url);
         setAddons(updated); // optimistic
         try {
-          const client = clientFor(account);
-          await pushRemoteAddons(client, account.activeProfileId, updated);
+          await withSession(
+            account,
+            (client) => pushRemoteAddons(client, account.activeProfileId, updated),
+            onAccountUpdated
+          );
           load();
         } catch (err) {
           setAddons(previous); // rollback
@@ -299,7 +327,7 @@ export function useRemoteData(
       addonQueueRef.current = promise.catch(() => {}); // no unhandled rejection
       return promise;
     },
-    [load, setStatusWithTimerClear]
+    [load, onAccountUpdated, setStatusWithTimerClear]
   );
 
   // Catalog editor operations
