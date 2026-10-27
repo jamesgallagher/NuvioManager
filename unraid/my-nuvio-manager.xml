@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Nuvio Manager</Name>
+  <Repository>ghcr.io/jamesgallagher/nuvio-manager:latest</Repository>
+  <Registry>https://github.com/jamesgallagher/NuvioManager/pkgs/container/nuvio-manager</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/jamesgallagher/NuvioManager/issues</Support>
+  <Project>https://github.com/jamesgallagher/NuvioManager</Project>
+  <ReadMe>https://github.com/jamesgallagher/NuvioManager#readme</ReadMe>
+  <Overview>Nuvio Manager is a remote management web app for Nuvio TV. It manages catalog order, visibility, titles and addons across multiple managed accounts. No data is stored on the server; accounts are kept in the browser.</Overview>
+  <Category>Tools: Utilities:</Category>
+  <WebUI>http://[IP]:[PORT:8095]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/jamesgallagher/NuvioManager/main/unraid/my-nuvio-manager.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/jamesgallagher/NuvioManager/main/unraid/nuvio-manager-icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <MyIP/>
+  <Requires/>
+  <TailscaleStateDir/>
+  <Changes>### 2026-10-28
+- Initial release</Changes>
+  <Config Name="WebUI Port" Default="8095" Target="8080" Description="Port for the Nuvio Manager web interface." Type="Port" Mode="tcp" Display="always" Required="true" Mask="false">8095</Config>
+  <Config Name="Supabase URL" Default="https://api.nuvio.tv" Target="SUPABASE_URL" Description="Default Supabase API URL pre-filled when adding an account. Leave as is for official Nuvio." Type="Variable" Display="always" Required="false" Mask="false">https://api.nuvio.tv</Config>
+  <Config Name="Supabase anon key" Default="" Target="SUPABASE_ANON_KEY" Description="Default Supabase anon (public) key pre-filled when adding an account. It can also be entered per account in the app." Type="Variable" Display="always" Required="false" Mask="false"></Config>
+</Container>

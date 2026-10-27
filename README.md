@@ -72,6 +72,38 @@ npm run preview
 
 ---
 
+## Docker and Unraid
+
+The app is a static build served by a small non-root nginx container. The image is published to GitHub Container Registry automatically whenever a PR is merged to `main`.
+
+**Image and tags:** `ghcr.io/jamesgallagher/nuvio-manager`
+- `latest` — the newest build of `main` (or the newest version tag).
+- `sha-xxxxxxx` — immutable, one per commit.
+- `X.Y.Z` and `X.Y` — from `vX.Y.Z` git tags.
+
+**Run it:**
+```bash
+docker run -d --name nuvio-manager \
+  -p 8095:8080 \
+  -e SUPABASE_URL=https://api.nuvio.tv \
+  -e SUPABASE_ANON_KEY=your-anon-key \
+  ghcr.io/jamesgallagher/nuvio-manager:latest
+```
+
+**Environment variables:**
+- `SUPABASE_URL` — the default Supabase API URL pre-filled when adding an account.
+- `SUPABASE_ANON_KEY` — the default Supabase anon (public) key pre-filled when adding an account.
+
+These only pre-fill defaults; you can still enter a URL and key per account in the app. All data stays in your browser — nothing is stored on the server.
+
+**Installing on Unraid:**
+1. Copy `unraid/my-nuvio-manager.xml` to `/boot/config/plugins/dockerMan/templates-user/`.
+2. In the Unraid UI, go to the **Docker** tab, click **Add Container**, and pick the **Nuvio Manager** template.
+
+**Security:** the app handles Supabase tokens, so serve it only on a trusted network or behind your own HTTPS reverse proxy.
+
+---
+
 ## Extensibility
 
 The codebase is built with modular services ready to be extended:
