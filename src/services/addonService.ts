@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { InstalledAddon } from '../types/nuvio';
 import { fetchAddonManifest } from './catalogService';
+import { mapWithConcurrency } from './concurrency';
 
 export interface SupabaseAddonRecord {
   id?: string;
@@ -36,29 +37,27 @@ export async function fetchRemoteAddons(
   const records = (data as SupabaseAddonRecord[]) || [];
   records.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
-  // Enrich with manifests in parallel
-  const enriched: InstalledAddon[] = await Promise.all(
-    records.map(async (record) => {
-      try {
-        const manifest = await fetchAddonManifest(record.url);
-        return {
-          url: record.url,
-          name: record.name || manifest.name,
-          enabled: record.enabled ?? true,
-          sort_order: record.sort_order ?? 0,
-          manifest,
-        };
-      } catch (err) {
-        return {
-          url: record.url,
-          name: record.name || record.url,
-          enabled: record.enabled ?? true,
-          sort_order: record.sort_order ?? 0,
-          error: (err as Error).message,
-        };
-      }
-    })
-  );
+  // Enrich with manifests, at most 5 in flight at once
+  const enriched: InstalledAddon[] = await mapWithConcurrency(records, 5, async (record) => {
+    try {
+      const manifest = await fetchAddonManifest(record.url);
+      return {
+        url: record.url,
+        name: record.name || manifest.name,
+        enabled: record.enabled ?? true,
+        sort_order: record.sort_order ?? 0,
+        manifest,
+      };
+    } catch (err) {
+      return {
+        url: record.url,
+        name: record.name || record.url,
+        enabled: record.enabled ?? true,
+        sort_order: record.sort_order ?? 0,
+        error: (err as Error).message,
+      };
+    }
+  });
 
   return enriched;
 }

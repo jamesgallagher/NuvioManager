@@ -1,6 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import {
-  AddonManifest,
   EnrichedCatalogRow,
   InstalledAddon,
   SyncCatalogItem,
@@ -63,33 +62,13 @@ export async function pushRemoteCatalogSettings(
   }
 }
 
-/**
- * Fetch addon manifest from URL with fallback
- */
-export async function fetchAddonManifest(baseUrl: string): Promise<AddonManifest> {
-  let manifestUrl = baseUrl.trim();
-  if (manifestUrl.endsWith('/manifest.json')) {
-    // already full manifest url
-  } else {
-    manifestUrl = `${manifestUrl.replace(/\/+$/, '')}/manifest.json`;
-  }
-
-  try {
-    const res = await fetch(manifestUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-    return await res.json();
-  } catch (err) {
-    // Attempt fallback with CORS proxy if running in browser
-    try {
-      const corsProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(manifestUrl)}`;
-      const res = await fetch(corsProxyUrl);
-      if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
-      return await res.json();
-    } catch {
-      throw new Error(`Failed to fetch manifest from ${manifestUrl}: ${(err as Error).message}`);
-    }
-  }
-}
+// Manifest fetching lives in manifestService.ts; re-export so existing
+// imports from catalogService keep working.
+export {
+  fetchAddonManifest,
+  isAddonManifest,
+  normalizeManifestUrl,
+} from './manifestService';
 
 /**
  * Build canonical catalog key
