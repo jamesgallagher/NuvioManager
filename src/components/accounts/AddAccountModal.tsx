@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ManagedAccount } from '../../types/nuvio';
-import { getSupabaseClient, DEFAULT_SUPABASE_ANON_KEY, DEFAULT_SUPABASE_URL } from '../../services/supabaseClient';
+import { getSupabaseClient, MissingAnonKeyError, DEFAULT_SUPABASE_ANON_KEY, DEFAULT_SUPABASE_URL } from '../../services/supabaseClient';
 import { X, Key, Mail, Lock, Server, Check, AlertCircle, Loader2 } from 'lucide-react';
 
 interface AddAccountModalProps {
@@ -46,7 +46,12 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({
       let finalAccessToken = accessToken.trim();
       let finalRefreshToken = initialAccount?.refreshToken;
 
-      const client = getSupabaseClient(supabaseUrl.trim(), supabaseAnonKey.trim());
+      const anonKey = supabaseAnonKey.trim();
+      if (anonKey.length === 0) {
+        throw new MissingAnonKeyError();
+      }
+
+      const client = getSupabaseClient(supabaseUrl.trim(), anonKey);
 
       if (authMethod === 'password') {
         if (!email.trim() || !password) {
@@ -80,7 +85,7 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({
         );
         const { data, error: userErr } = await authClient.auth.getUser(finalAccessToken);
         if (userErr) {
-          console.warn('Could not verify token with getUser, attempting RPC check:', userErr);
+          throw userErr;
         } else if (data.user) {
           finalUserId = data.user.id;
           if (!email) setEmail(data.user.email || '');
