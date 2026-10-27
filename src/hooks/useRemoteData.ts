@@ -185,18 +185,21 @@ export function useRemoteData(
     }
   }, [onAccountUpdated, setStatusWithTimerClear]);
 
-  // Auto-load when the account or profile changes; clear old data first so the
-  // loading view shows and the previous account's rows are never visible.
-  // Depending on the whole account also invalidates any in-flight load.
+  // Auto-load when the account id or profile id changes; clear old data first so
+  // the loading view shows and the previous account's rows are never visible.
+  // Keying on id/profile (not the whole account) means a token refresh or an
+  // account edit does not wipe unsaved catalog edits or re-load. The rest of the
+  // account is read through activeAccountRef.
+  const activeAccountId = activeAccount?.id;
+  const activeProfileId = activeAccount?.activeProfileId;
   useEffect(() => {
-    if (activeAccount) {
-      setCatalogs([]);
-      setAddons([]);
-      setRemotePayload(null);
-      setBaselineSignature('');
-      load();
-    }
-  }, [activeAccount, load]);
+    if (!activeAccountRef.current) return;
+    setCatalogs([]);
+    setAddons([]);
+    setRemotePayload(null);
+    setBaselineSignature('');
+    load();
+  }, [activeAccountId, activeProfileId, load]);
 
   // User-triggered load (Refresh / Reset) with the unsaved-changes guard.
   const refresh = useCallback(() => {

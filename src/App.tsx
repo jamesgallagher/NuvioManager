@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { ManagedAccount } from './types/nuvio';
 import { useAccounts } from './hooks/useAccounts';
 import { useRemoteData } from './hooks/useRemoteData';
@@ -27,13 +27,21 @@ export const App: React.FC = () => {
     updateAccountTokens,
   } = useAccounts({ confirmDiscardRef });
 
-  const remote = useRemoteData(activeAccount, {
-    onAccountUpdated: (account) =>
+  // Memoised so useRemoteData's `load` stays stable across renders; the
+  // auto-load effect keys on account id/profile only, and a token refresh must
+  // not re-trigger it.
+  const handleAccountUpdated = useCallback(
+    (account: ManagedAccount) =>
       updateAccountTokens(
         account.id,
         account.accessToken ?? '',
         account.refreshToken ?? ''
       ),
+    [updateAccountTokens]
+  );
+
+  const remote = useRemoteData(activeAccount, {
+    onAccountUpdated: handleAccountUpdated,
   });
   confirmDiscardRef.current = remote.confirmDiscard;
 

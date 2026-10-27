@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { useRef, useCallback } from 'react';
 import { useRemoteData } from './useRemoteData';
+import { useAccounts } from './useAccounts';
+import { saveAccounts, setActiveAccountId } from '../services/accountStorage';
 import {
   ManagedAccount,
   EnrichedCatalogRow,
@@ -600,5 +603,109 @@ describe('useRemoteData', () => {
     // Unmount clears the timer.
     unmount();
     vi.useRealTimers();
+  });
+});
+
+// Integration tests: useAccounts + useRemoteData wired together (mirrors App.tsx),
+// proving the auto-load effect keys on account id/profile only.
+describe('useAccounts + useRemoteData (App wiring)', () => {
+  function useTestHooks() {
+    const confirmDiscardRef = useRef<() => boolean>(() => true);
+    const accounts = useAccounts({ confirmDiscardRef });
+    const { updateAccountTokens } = accounts;
+    // Memoise onAccountUpdated so useRemoteData's `load` stays stable across
+    // renders, exactly as App.tsx does.
+    const handleAccountUpdated = useCallback(
+      (account: ManagedAccount) =>
+        updateAccountTokens(
+          account.id,
+          account.accessToken ?? '',
+          account.refreshToken ?? ''
+        ),
+      [updateAccountTokens]
+    );
+    const remote = useRemoteData(accounts.activeAccount, {
+      onAccountUpdated: handleAccountUpdated,
+    });
+    confirmDiscardRef.current = remote.confirmDiscard;
+    return { accounts, remote };
+  }
+
+  function seedRemoteMocks() {
+    vi.mocked(fetchRemoteAddons).mockResolvedValue([
+      {
+        url: 'https://addon-1.example.invalid/manifest.json',
+        name: 'Addon 1',
+        enabled: true,
+        sort_order: 0,
+      },
+    ]);
+    vi.mocked(pullRemoteCatalogSettings).mockResolvedValue({
+      hide_unreleased_content: false,
+      items: [],
+    });
+    vi.mocked(enrichCatalogs).mockReturnValue([row('a', true, 0)]);
+  }
+
+  it('token refresh does not wipe unsaved catalog edits or re-load', async () => {
+    localStorage.clear();
+    const acc = account('a');
+    saveAccounts([acc]);
+    setActiveAccountId('a');
+    seedRemoteMocks();
+
+    const { result } = renderHook(() => useTestHooks());
+    await act(async () => {});
+    expect(result.current.remote.hasUnsavedChanges).toBe(false);
+
+    // Make an unsaved catalog edit.
+    act(() => {
+      result.current.remote.toggleCatalog('a');
+    });
+    expect(result.current.remote.hasUnsavedChanges).toBe(true);
+
+    const loadCalls = vi.mocked(fetchRemoteAddons).mock.calls.length;
+
+    // Trigger a token refresh: same id/profile, new tokens (new account object).
+    act(() => {
+      result.current.accounts.updateAccountTokens('a', 'new-access-token', 'new-refresh-token');
+    });
+    await act(async () => {});
+
+    // The catalog edits survive and no extra load ran.
+    expect(result.current.remote.hasUnsavedChanges).toBe(true);
+    expect(vi.mocked(fetchRemoteAddons).mock.calls.length).toBe(loadCalls);
+  });
+
+  it('editing the active account name (same id/profile) does not reload or clear data', async () => {
+    localStorage.clear();
+    const acc = account('a');
+    saveAccounts([acc]);
+    setActiveAccountId('a');
+    seedRemoteMocks();
+
+    const { result } = renderHook(() => useTestHooks());
+    await act(async () => {});
+    expect(result.current.remote.hasUnsavedChanges).toBe(false);
+
+    // Make an unsaved catalog edit.
+    act(() => {
+      result.current.remote.toggleCatalog('a');
+    });
+    expect(result.current.remote.hasUnsavedChanges).toBe(true);
+
+    const loadCalls = vi.mocked(fetchRemoteAddons).mock.calls.length;
+    const catalogsBefore = result.current.remote.catalogs;
+
+    // Edit the active account's name via saveAccount (same id and profile).
+    act(() => {
+      result.current.accounts.saveAccount({ ...acc, name: 'Renamed Account' });
+    });
+    await act(async () => {});
+
+    // The catalog edits survive, data is not cleared, and no extra load ran.
+    expect(result.current.remote.hasUnsavedChanges).toBe(true);
+    expect(result.current.remote.catalogs).toEqual(catalogsBefore);
+    expect(vi.mocked(fetchRemoteAddons).mock.calls.length).toBe(loadCalls);
   });
 });
