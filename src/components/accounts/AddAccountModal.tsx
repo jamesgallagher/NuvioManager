@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ManagedAccount } from '../../types/nuvio';
-import { getSupabaseClient, MissingAnonKeyError, DEFAULT_SUPABASE_ANON_KEY, DEFAULT_SUPABASE_URL } from '../../services/supabaseClient';
+import { getSupabaseClient, MissingAnonKeyError, getDefaultAnonKey, DEFAULT_SUPABASE_URL } from '../../services/supabaseClient';
 import { makeId } from '../../services/randomId';
 import { toErrorMessage } from '../../services/errors';
 import { X, Key, Mail, Lock, Server, Check, AlertCircle, Loader2 } from 'lucide-react';
@@ -17,6 +17,7 @@ interface AddAccountModalProps {
   onClose: () => void;
   onSaveAccount: (account: ManagedAccount) => void;
   initialAccount?: ManagedAccount | null;
+  onGetKey?: () => void;
 }
 
 export const AddAccountModal: React.FC<AddAccountModalProps> = ({
@@ -24,6 +25,7 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({
   onClose,
   onSaveAccount,
   initialAccount,
+  onGetKey,
 }) => {
   const [name, setName] = useState(initialAccount?.name || '');
   const [region, setRegion] = useState(initialAccount?.region || '');
@@ -35,11 +37,12 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({
     initialAccount?.supabaseUrl || DEFAULT_SUPABASE_URL
   );
   const [supabaseAnonKey, setSupabaseAnonKey] = useState(
-    initialAccount?.supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY
+    initialAccount?.supabaseAnonKey || getDefaultAnonKey()
   );
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [missingKeyError, setMissingKeyError] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -146,6 +149,7 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({
         onClose();
       }, 500);
     } catch (err) {
+      setMissingKeyError(err instanceof MissingAnonKeyError);
       setError(toErrorMessage(err, 'Failed to authenticate account. Check credentials.'));
     } finally {
       setLoading(false);
@@ -180,7 +184,21 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({
           {error && (
             <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
+              <div className="space-y-1.5">
+                <span>{error}</span>
+                {missingKeyError && getDefaultAnonKey() === '' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onGetKey?.();
+                    }}
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    Get the key automatically
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

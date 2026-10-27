@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getRuntimeConfig } from './runtimeConfig';
+import { loadServerSettings } from './serverSettings';
 
 const runtime = getRuntimeConfig();
 
@@ -7,6 +8,18 @@ export const DEFAULT_SUPABASE_URL =
   runtime.supabaseUrl || import.meta.env.VITE_SUPABASE_URL || 'https://api.nuvio.tv';
 export const DEFAULT_SUPABASE_ANON_KEY =
   runtime.supabaseAnonKey || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+/**
+ * The current default anon key: the saved server setting, else the runtime
+ * config (CARD-002), else the build-time `VITE_` value, else ''.
+ */
+export function getDefaultAnonKey(): string {
+  const saved = loadServerSettings();
+  if (saved && saved.supabaseAnonKey.trim().length > 0) {
+    return saved.supabaseAnonKey;
+  }
+  return DEFAULT_SUPABASE_ANON_KEY;
+}
 
 /**
  * Thrown when a Supabase client is requested without an anon key.

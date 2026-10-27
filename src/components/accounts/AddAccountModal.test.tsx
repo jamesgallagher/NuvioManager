@@ -14,6 +14,7 @@ vi.mock('../../services/supabaseClient', () => ({
   },
   DEFAULT_SUPABASE_ANON_KEY: '',
   DEFAULT_SUPABASE_URL: 'https://example.invalid',
+  getDefaultAnonKey: vi.fn(() => ''),
 }));
 
 function makeMockClient() {

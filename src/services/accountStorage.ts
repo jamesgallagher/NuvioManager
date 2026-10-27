@@ -1,5 +1,5 @@
 import { ManagedAccount } from '../types/nuvio';
-import { DEFAULT_SUPABASE_ANON_KEY, DEFAULT_SUPABASE_URL } from './supabaseClient';
+import { DEFAULT_SUPABASE_URL, getDefaultAnonKey } from './supabaseClient';
 import { makeId } from './randomId';
 
 const STORAGE_KEY = 'nuvio_managed_accounts_v1';
@@ -44,7 +44,7 @@ export function createDefaultAccount(partial: Partial<ManagedAccount>): ManagedA
     region: partial.region || '',
     notes: partial.notes || '',
     supabaseUrl: partial.supabaseUrl || DEFAULT_SUPABASE_URL,
-    supabaseAnonKey: partial.supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY,
+    supabaseAnonKey: partial.supabaseAnonKey || getDefaultAnonKey(),
     activeProfileId: partial.activeProfileId ?? 1,
     profiles: partial.profiles || [{ id: 1, name: 'Default', isPrimary: true }],
     ...partial,
