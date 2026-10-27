@@ -165,17 +165,20 @@ export const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Add / Edit Account Modal */}
-      <AddAccountModal
-        isOpen={isAddAccountModalOpen}
-        onClose={() => {
-          setIsAddAccountModalOpen(false);
-          setEditingAccount(null);
-        }}
-        onSaveAccount={saveAccount}
-        initialAccount={editingAccount}
-        onGetKey={() => setIsGetKeyViewOpen(true)}
-      />
+      {/* Add / Edit Account Modal. Mounted only while open so its fields start
+          from the current saved key and the account being edited each time. */}
+      {isAddAccountModalOpen && (
+        <AddAccountModal
+          isOpen
+          onClose={() => {
+            setIsAddAccountModalOpen(false);
+            setEditingAccount(null);
+          }}
+          onSaveAccount={saveAccount}
+          initialAccount={editingAccount}
+          onGetKey={() => setIsGetKeyViewOpen(true)}
+        />
+      )}
 
       {/* Get the key view */}
       <GetKeyView
