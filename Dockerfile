@@ -9,16 +9,19 @@ RUN npm ci
 
 COPY . .
 
+# The runtime stage is non-root and cannot chmod; set the executable bit here
+# (the build stage runs as root) so the entrypoint script is executable.
+RUN chmod +x /app/docker/40-runtime-config.sh
+
 RUN npm run build
 
 # Runtime stage: non-root nginx serving the static build on port 8080.
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 
 # The unprivileged image already runs as the non-root "nginx" user; keep it.
-COPY dist/ /usr/share/nginx/html/
+COPY --from=build /app/dist/ /usr/share/nginx/html/
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
-COPY docker/40-runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
-RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
+COPY --from=build /app/docker/40-runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
 
 EXPOSE 8080
 
