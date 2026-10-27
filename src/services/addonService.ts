@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { InstalledAddon } from '../types/nuvio';
 import { fetchAddonManifest } from './catalogService';
 import { mapWithConcurrency } from './concurrency';
+import { makeOriginClientId } from './originClient';
 
 export interface SupabaseAddonRecord {
   id?: string;
@@ -77,7 +78,7 @@ export async function pushRemoteAddons(
     name: addon.name || addon.manifest?.name || '',
   }));
 
-  const originClientId = `nuvio-support-web-${Math.random().toString(36).substring(2, 10)}`;
+  const originClientId = makeOriginClientId();
 
   const { error } = await client.rpc('sync_push_addons', {
     p_addons: pAddons,

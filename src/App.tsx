@@ -15,6 +15,8 @@ import {
   fetchAddonManifest,
 } from './services/catalogService';
 import { fetchRemoteAddons, pushRemoteAddons } from './services/addonService';
+import { catalogSignature } from './services/catalogSignature';
+import { toErrorMessage } from './services/errors';
 
 import { Header } from './components/layout/Header';
 import { Sidebar, ActiveTab } from './components/layout/Sidebar';
@@ -131,17 +133,14 @@ export const App: React.FC = () => {
       const enriched = enrichCatalogs(fetchedAddons, remotePayload);
       setCatalogs(enriched);
 
-      const sig = JSON.stringify(
-        enriched.map((e) => ({ k: e.key, en: e.enabled, o: e.order, t: e.customTitle }))
-      );
-      setBaselineCatalogSignature(sig);
+      setBaselineCatalogSignature(catalogSignature(enriched));
 
       setStatus('success');
       setStatusMessage('Catalogs Loaded');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load remote data', err);
       setStatus('error');
-      setStatusMessage(err.message || 'Error fetching from Supabase');
+      setStatusMessage(toErrorMessage(err, 'Error fetching from Supabase'));
     } finally {
       setIsLoading(false);
     }
@@ -154,9 +153,7 @@ export const App: React.FC = () => {
   }, [activeAccount?.id, activeAccount?.activeProfileId, loadData]);
 
   // Check if there are unsaved catalog changes
-  const currentCatalogSignature = JSON.stringify(
-    catalogs.map((e) => ({ k: e.key, en: e.enabled, o: e.order, t: e.customTitle }))
-  );
+  const currentCatalogSignature = catalogSignature(catalogs);
   const hasUnsavedChanges =
     baselineCatalogSignature !== '' && currentCatalogSignature !== baselineCatalogSignature;
 
@@ -222,10 +219,10 @@ export const App: React.FC = () => {
       setStatus('success');
       setStatusMessage('Pushed to TV successfully!');
       setTimeout(() => setStatus('idle'), 4000);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to push catalog settings:', err);
       setStatus('error');
-      setStatusMessage(err.message || 'Push failed');
+      setStatusMessage(toErrorMessage(err, 'Push failed'));
     } finally {
       setIsSaving(false);
     }

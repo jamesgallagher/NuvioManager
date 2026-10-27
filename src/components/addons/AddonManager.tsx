@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { InstalledAddon, ManagedAccount } from '../../types/nuvio';
+import { toErrorMessage } from '../../services/errors';
 import { Plus, Trash2, Globe, AlertCircle, Loader2, Power } from 'lucide-react';
 
 interface AddonManagerProps {
@@ -30,8 +31,8 @@ export const AddonManager: React.FC<AddonManagerProps> = ({
     try {
       await onAddAddonUrl(newUrl.trim());
       setNewUrl('');
-    } catch (err: any) {
-      setError(err.message || 'Failed to install addon.');
+    } catch (err) {
+      setError(toErrorMessage(err, 'Failed to install addon.'));
     } finally {
       setAdding(false);
     }

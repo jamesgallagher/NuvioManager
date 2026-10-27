@@ -5,6 +5,7 @@ import {
   SyncCatalogItem,
   SyncHomeCatalogPayload,
 } from '../types/nuvio';
+import { makeOriginClientId } from './originClient';
 
 const PLATFORM = 'home_catalog_shared';
 
@@ -47,7 +48,7 @@ export async function pushRemoteCatalogSettings(
   profileId: number,
   payload: SyncHomeCatalogPayload
 ): Promise<void> {
-  const originClientId = `nuvio-support-web-${Math.random().toString(36).substring(2, 10)}`;
+  const originClientId = makeOriginClientId();
 
   const { error } = await client.rpc('sync_push_home_catalog_settings', {
     p_profile_id: profileId,
