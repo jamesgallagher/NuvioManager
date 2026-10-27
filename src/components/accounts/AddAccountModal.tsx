@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ManagedAccount } from '../../types/nuvio';
 import { getSupabaseClient, MissingAnonKeyError, DEFAULT_SUPABASE_ANON_KEY, DEFAULT_SUPABASE_URL } from '../../services/supabaseClient';
+import { makeId } from '../../services/randomId';
 import { toErrorMessage } from '../../services/errors';
 import { X, Key, Mail, Lock, Server, Check, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -125,7 +126,7 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({
       }
 
       const account: ManagedAccount = {
-        id: initialAccount?.id || crypto.randomUUID(),
+        id: initialAccount?.id || makeId(),
         name: name.trim() || (email ? email.split('@')[0] : 'Managed Account'),
         email: email.trim(),
         region: region.trim(),
