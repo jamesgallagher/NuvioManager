@@ -188,11 +188,36 @@ export function enrichCatalogs(
 }
 
 /**
- * Format EnrichedCatalogRows back into a SyncHomeCatalogPayload
+ * Find remote items that do not correspond to any row (e.g. items for
+ * disabled addons or addons whose manifest failed). These must be preserved
+ * on push so they are not dropped. Collections are already rows, so they are
+ * excluded here. Items are returned in their original relative order.
+ */
+export function findUnmatchedRemoteItems(
+  rows: EnrichedCatalogRow[],
+  remotePayload: SyncHomeCatalogPayload | null
+): SyncCatalogItem[] {
+  const rowKeys = new Set(rows.map((r) => r.key));
+  const preserved: SyncCatalogItem[] = [];
+  if (remotePayload && Array.isArray(remotePayload.items)) {
+    for (const item of remotePayload.items) {
+      if (item.is_collection) continue;
+      const key = buildCatalogKey(item.addon_id, item.type, item.catalog_id);
+      if (rowKeys.has(key)) continue;
+      preserved.push(item);
+    }
+  }
+  return preserved.sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Format EnrichedCatalogRows back into a SyncHomeCatalogPayload, preserving
+ * any remote items that are not represented by a row so a push never drops
+ * remote data.
  */
 export function buildSyncPayload(
   rows: EnrichedCatalogRow[],
-  hideUnreleasedContent: boolean = false
+  remotePayload: SyncHomeCatalogPayload | null
 ): SyncHomeCatalogPayload {
   const items: SyncCatalogItem[] = rows.map((row, index) => ({
     addon_id: row.isCollection ? '' : row.addonId,
@@ -205,8 +230,13 @@ export function buildSyncPayload(
     collection_id: row.isCollection ? row.collectionId : '',
   }));
 
+  const preserved = findUnmatchedRemoteItems(rows, remotePayload);
+  for (let i = 0; i < preserved.length; i++) {
+    items.push({ ...preserved[i], order: rows.length + i });
+  }
+
   return {
-    hide_unreleased_content: hideUnreleasedContent,
+    hide_unreleased_content: remotePayload?.hide_unreleased_content ?? false,
     items,
   };
 }

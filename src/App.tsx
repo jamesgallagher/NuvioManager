@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { EnrichedCatalogRow, InstalledAddon, ManagedAccount } from './types/nuvio';
+import { EnrichedCatalogRow, InstalledAddon, ManagedAccount, SyncHomeCatalogPayload } from './types/nuvio';
 import {
   loadAccounts,
   saveAccounts,
@@ -33,6 +33,7 @@ export const App: React.FC = () => {
   // Catalogs & Addons state
   const [catalogs, setCatalogs] = useState<EnrichedCatalogRow[]>([]);
   const [addons, setAddons] = useState<InstalledAddon[]>([]);
+  const [remotePayload, setRemotePayload] = useState<SyncHomeCatalogPayload | null>(null);
   const [baselineCatalogSignature, setBaselineCatalogSignature] = useState<string>('');
 
   const [isLoading, setIsLoading] = useState(false);
@@ -124,6 +125,7 @@ export const App: React.FC = () => {
 
       // 2. Fetch remote catalog layout
       const remotePayload = await pullRemoteCatalogSettings(client, activeAccount.activeProfileId);
+      setRemotePayload(remotePayload);
 
       // 3. Synthesize enriched rows
       const enriched = enrichCatalogs(fetchedAddons, remotePayload);
@@ -212,9 +214,10 @@ export const App: React.FC = () => {
         activeAccount.accessToken
       );
 
-      const payload = buildSyncPayload(catalogs);
+      const payload = buildSyncPayload(catalogs, remotePayload);
       await pushRemoteCatalogSettings(client, activeAccount.activeProfileId, payload);
 
+      setRemotePayload(payload);
       setBaselineCatalogSignature(currentCatalogSignature);
       setStatus('success');
       setStatusMessage('Pushed to TV successfully!');
