@@ -79,3 +79,17 @@ export function maskKey(key: string): string {
   const k = key.trim();
   return `${k.slice(0, 8)}…${k.slice(-4)}`;
 }
+
+/**
+ * Plain-English description of a validation failure reason.
+ */
+export function reasonToPlainEnglish(reason: 'format' | 'role' | 'expired'): string {
+  switch (reason) {
+    case 'format':
+      return 'it does not look like a valid key';
+    case 'role':
+      return 'it is not a public (anon) key';
+    case 'expired':
+      return 'it has expired';
+  }
+}

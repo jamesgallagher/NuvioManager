@@ -1,12 +1,16 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { X } from 'lucide-react';
 import { ManagedAccount } from './types/nuvio';
 import { useAccounts } from './hooks/useAccounts';
 import { useRemoteData } from './hooks/useRemoteData';
+import { useKeyHandoff } from './hooks/useKeyHandoff';
+import { reasonToPlainEnglish } from './services/anonKey';
 import { Header } from './components/layout/Header';
 import { Sidebar, ActiveTab } from './components/layout/Sidebar';
 import { CatalogManager } from './components/catalogs/CatalogManager';
 import { AddonManager } from './components/addons/AddonManager';
 import { AccountSettingsView } from './components/settings/AccountSettingsView';
+import { GetKeyView } from './components/settings/GetKeyView';
 import { AddAccountModal } from './components/accounts/AddAccountModal';
 import { CollectionsView } from './components/collections/CollectionsView';
 import { NoAccountPlaceholder } from './components/common/NoAccountPlaceholder';
@@ -48,6 +52,11 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('catalogs');
   const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<ManagedAccount | null>(null);
+  const [isGetKeyViewOpen, setIsGetKeyViewOpen] = useState(false);
+
+  // Key handoff: if the URL fragment carries a key from the helper, validate
+  // and save it, then remove the fragment. The banner reports the outcome.
+  const { result: keyHandoffResult, dismiss: dismissKeyHandoff } = useKeyHandoff();
 
   const openAddAccountModal = () => {
     setEditingAccount(null);
@@ -80,8 +89,28 @@ export const App: React.FC = () => {
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full">
+          {keyHandoffResult && (
+            <div className="mb-4 flex items-center justify-between p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs">
+              <span>
+                {keyHandoffResult.ok
+                  ? `Anon key saved (${keyHandoffResult.masked}). You can now sign in with just your email and password.`
+                  : `That key was not accepted (${reasonToPlainEnglish(keyHandoffResult.reason)}).`}
+              </span>
+              <button
+                onClick={dismissKeyHandoff}
+                aria-label="Dismiss"
+                className="p-1 text-blue-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {!activeAccount ? (
-            <NoAccountPlaceholder onAddAccount={openAddAccountModal} />
+            <NoAccountPlaceholder
+              onAddAccount={openAddAccountModal}
+              onGetKey={() => setIsGetKeyViewOpen(true)}
+            />
           ) : remote.isLoading && remote.catalogs.length === 0 ? (
             <LoadingPlaceholder activeAccount={activeAccount} />
           ) : (
@@ -128,6 +157,7 @@ export const App: React.FC = () => {
                   }}
                   onDeleteAccount={deleteAccount}
                   onOpenAddModal={openAddAccountModal}
+                  onGetKey={() => setIsGetKeyViewOpen(true)}
                 />
               )}
             </>
@@ -144,6 +174,13 @@ export const App: React.FC = () => {
         }}
         onSaveAccount={saveAccount}
         initialAccount={editingAccount}
+        onGetKey={() => setIsGetKeyViewOpen(true)}
+      />
+
+      {/* Get the key view */}
+      <GetKeyView
+        isOpen={isGetKeyViewOpen}
+        onClose={() => setIsGetKeyViewOpen(false)}
       />
     </div>
   );
