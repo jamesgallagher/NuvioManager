@@ -72,6 +72,20 @@ npm run preview
 
 ---
 
+## Getting the Nuvio anon key
+
+The app needs Nuvio's Supabase **anon key** (a public client key) to connect. Nuvio ships this key to every browser that loads `nuvio.tv`, but the official repos do not publish it, so we do **not** hard-code it in this public repo or image. You supply it once, and the app stores it in this browser.
+
+There are three ways to supply it:
+
+1. **Key helper (recommended).** Open **Get the key** in the app and drag the **Nuvio key helper** bookmarklet to your bookmarks bar. Open [nuvio.tv](https://nuvio.tv), then click the bookmark. It finds the public key on the page and hands it back to the app in a URL fragment (`#nuvio-key=...`), which is never sent to any server. The app validates it and saves it in this browser.
+2. **Paste it yourself.** In **Get the key**, use **Manual paste** to paste the key (for example, one you copied from `nuvio.tv` DevTools). The app validates it before saving.
+3. **Environment variable (Docker / Unraid).** Set `SUPABASE_ANON_KEY` when running the container; it pre-fills the default key when adding an account.
+
+**Privacy:** the helper only looks for Nuvio's public client key on the `nuvio.tv` page. It does not read your login, cookies or passwords, and it only ever hands back a JWT whose payload says `"role":"anon"` (a `service_role` key or anything else is ignored and never sent anywhere).
+
+---
+
 ## Docker and Unraid
 
 The app is a static build served by a small non-root nginx container. The image is published to GitHub Container Registry automatically whenever a PR is merged to `main`.

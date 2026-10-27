@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AddAccountModal } from './AddAccountModal';
-import { getSupabaseClient } from '../../services/supabaseClient';
+import { getSupabaseClient, getDefaultAnonKey } from '../../services/supabaseClient';
 import { ManagedAccount } from '../../types/nuvio';
 
 vi.mock('../../services/supabaseClient', () => ({
@@ -14,6 +14,7 @@ vi.mock('../../services/supabaseClient', () => ({
   },
   DEFAULT_SUPABASE_ANON_KEY: '',
   DEFAULT_SUPABASE_URL: 'https://example.invalid',
+  getDefaultAnonKey: vi.fn(() => ''),
 }));
 
 function makeMockClient() {
@@ -115,5 +116,59 @@ describe('AddAccountModal', () => {
     await user.click(screen.getByText('Connect Account'));
     await screen.findByText(/error|invalid/i);
     expect(onSaveAccount).not.toHaveBeenCalled();
+  });
+});
+
+describe('AddAccountModal get-key button', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('no key available: the error contains the message and the Get the key automatically button opens the view', async () => {
+    const user = userEvent.setup();
+    const onSaveAccount = vi.fn();
+    const onClose = vi.fn();
+    const onGetKey = vi.fn();
+    render(
+      <AddAccountModal isOpen onClose={onClose} onSaveAccount={onSaveAccount} onGetKey={onGetKey} />
+    );
+    await user.type(screen.getByPlaceholderText('e.g. Living Room TV or Family Account'), 'Test Account');
+    await user.type(screen.getByPlaceholderText('family@example.com'), 'test@example.invalid');
+    await user.type(screen.getByPlaceholderText('••••••••••••'), 'password');
+    await user.click(screen.getByText('Connect Account'));
+    await screen.findByText('A Supabase anon key is required');
+    const button = screen.getByText('Get the key automatically');
+    await user.click(button);
+    expect(onGetKey).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('with a saved server key, the missing-key error does not appear and sign-in is attempted with that key', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getDefaultAnonKey).mockReturnValue('saved-server-key');
+    const mockClient = makeMockClient();
+    mockClient.auth.signInWithPassword.mockResolvedValue({
+      data: {
+        user: { id: 'user-1', email: 'test@example.invalid' },
+        session: { access_token: 'access-token', refresh_token: 'refresh-token' },
+      },
+      error: null,
+    });
+    mockClient.rpc.mockResolvedValue({
+      data: [{ id: 1, name: 'Default', is_primary: true }],
+      error: null,
+    });
+    vi.mocked(getSupabaseClient).mockReturnValue(mockClient as unknown as ReturnType<typeof getSupabaseClient>);
+    const onSaveAccount = vi.fn();
+    render(
+      <AddAccountModal isOpen onClose={vi.fn()} onSaveAccount={onSaveAccount} />
+    );
+    await user.type(screen.getByPlaceholderText('e.g. Living Room TV or Family Account'), 'Test Account');
+    await user.type(screen.getByPlaceholderText('family@example.com'), 'test@example.invalid');
+    await user.type(screen.getByPlaceholderText('••••••••••••'), 'password');
+    await user.click(screen.getByText('Connect Account'));
+    await waitFor(() => expect(onSaveAccount).toHaveBeenCalled());
+    expect(getSupabaseClient).toHaveBeenCalledWith('https://example.invalid', 'saved-server-key');
+    expect(screen.queryByText('A Supabase anon key is required')).toBeNull();
   });
 });

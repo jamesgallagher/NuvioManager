@@ -9,6 +9,7 @@ interface AccountSettingsViewProps {
   onEditAccount: (account: ManagedAccount) => void;
   onDeleteAccount: (id: string) => void;
   onOpenAddModal: () => void;
+  onGetKey?: () => void;
 }
 
 export const AccountSettingsView: React.FC<AccountSettingsViewProps> = ({
@@ -18,6 +19,7 @@ export const AccountSettingsView: React.FC<AccountSettingsViewProps> = ({
   onEditAccount,
   onDeleteAccount,
   onOpenAddModal,
+  onGetKey,
 }) => {
   return (
     <div className="space-y-6">
@@ -27,6 +29,14 @@ export const AccountSettingsView: React.FC<AccountSettingsViewProps> = ({
           <p className="text-xs text-slate-400 mt-1">
             Store and quickly switch between Nuvio accounts you support remotely.
           </p>
+          {onGetKey && (
+            <button
+              onClick={onGetKey}
+              className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline"
+            >
+              Need the Nuvio key? Get it automatically
+            </button>
+          )}
         </div>
         <button
           onClick={onOpenAddModal}

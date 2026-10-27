@@ -3,13 +3,17 @@ import { Plus } from 'lucide-react';
 
 interface NoAccountPlaceholderProps {
   onAddAccount: () => void;
+  onGetKey: () => void;
 }
 
 /**
  * Shown when no managed account is selected. Markup and classes unchanged
  * from the original inline block in App.tsx.
  */
-export const NoAccountPlaceholder: React.FC<NoAccountPlaceholderProps> = ({ onAddAccount }) => {
+export const NoAccountPlaceholder: React.FC<NoAccountPlaceholderProps> = ({
+  onAddAccount,
+  onGetKey,
+}) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8 bg-slate-900/40 rounded-2xl border border-slate-800">
       <div className="w-12 h-12 rounded-2xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-4">
@@ -25,6 +29,12 @@ export const NoAccountPlaceholder: React.FC<NoAccountPlaceholderProps> = ({ onAd
       >
         <Plus className="w-4 h-4" />
         <span>Add Your First Account</span>
+      </button>
+      <button
+        onClick={onGetKey}
+        className="mt-3 text-xs text-blue-400 hover:text-blue-300 underline"
+      >
+        Need the Nuvio key? Get it automatically
       </button>
     </div>
   );
