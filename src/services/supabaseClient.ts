@@ -1,9 +1,12 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { getRuntimeConfig } from './runtimeConfig';
+
+const runtime = getRuntimeConfig();
 
 export const DEFAULT_SUPABASE_URL =
-  import.meta.env.VITE_SUPABASE_URL || 'https://api.nuvio.tv';
+  runtime.supabaseUrl || import.meta.env.VITE_SUPABASE_URL || 'https://api.nuvio.tv';
 export const DEFAULT_SUPABASE_ANON_KEY =
-  import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  runtime.supabaseAnonKey || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 /**
  * Thrown when a Supabase client is requested without an anon key.
