@@ -1,11 +1,11 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import {
-  AddonManifest,
   EnrichedCatalogRow,
   InstalledAddon,
   SyncCatalogItem,
   SyncHomeCatalogPayload,
 } from '../types/nuvio';
+import { makeOriginClientId } from './originClient';
 
 const PLATFORM = 'home_catalog_shared';
 
@@ -48,7 +48,7 @@ export async function pushRemoteCatalogSettings(
   profileId: number,
   payload: SyncHomeCatalogPayload
 ): Promise<void> {
-  const originClientId = `nuvio-support-web-${Math.random().toString(36).substring(2, 10)}`;
+  const originClientId = makeOriginClientId();
 
   const { error } = await client.rpc('sync_push_home_catalog_settings', {
     p_profile_id: profileId,
@@ -63,33 +63,13 @@ export async function pushRemoteCatalogSettings(
   }
 }
 
-/**
- * Fetch addon manifest from URL with fallback
- */
-export async function fetchAddonManifest(baseUrl: string): Promise<AddonManifest> {
-  let manifestUrl = baseUrl.trim();
-  if (manifestUrl.endsWith('/manifest.json')) {
-    // already full manifest url
-  } else {
-    manifestUrl = `${manifestUrl.replace(/\/+$/, '')}/manifest.json`;
-  }
-
-  try {
-    const res = await fetch(manifestUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-    return await res.json();
-  } catch (err) {
-    // Attempt fallback with CORS proxy if running in browser
-    try {
-      const corsProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(manifestUrl)}`;
-      const res = await fetch(corsProxyUrl);
-      if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
-      return await res.json();
-    } catch {
-      throw new Error(`Failed to fetch manifest from ${manifestUrl}: ${(err as Error).message}`);
-    }
-  }
-}
+// Manifest fetching lives in manifestService.ts; re-export so existing
+// imports from catalogService keep working.
+export {
+  fetchAddonManifest,
+  isAddonManifest,
+  normalizeManifestUrl,
+} from './manifestService';
 
 /**
  * Build canonical catalog key
@@ -188,11 +168,36 @@ export function enrichCatalogs(
 }
 
 /**
- * Format EnrichedCatalogRows back into a SyncHomeCatalogPayload
+ * Find remote items that do not correspond to any row (e.g. items for
+ * disabled addons or addons whose manifest failed). These must be preserved
+ * on push so they are not dropped. Collections are already rows, so they are
+ * excluded here. Items are returned in their original relative order.
+ */
+export function findUnmatchedRemoteItems(
+  rows: EnrichedCatalogRow[],
+  remotePayload: SyncHomeCatalogPayload | null
+): SyncCatalogItem[] {
+  const rowKeys = new Set(rows.map((r) => r.key));
+  const preserved: SyncCatalogItem[] = [];
+  if (remotePayload && Array.isArray(remotePayload.items)) {
+    for (const item of remotePayload.items) {
+      if (item.is_collection) continue;
+      const key = buildCatalogKey(item.addon_id, item.type, item.catalog_id);
+      if (rowKeys.has(key)) continue;
+      preserved.push(item);
+    }
+  }
+  return preserved.sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Format EnrichedCatalogRows back into a SyncHomeCatalogPayload, preserving
+ * any remote items that are not represented by a row so a push never drops
+ * remote data.
  */
 export function buildSyncPayload(
   rows: EnrichedCatalogRow[],
-  hideUnreleasedContent: boolean = false
+  remotePayload: SyncHomeCatalogPayload | null
 ): SyncHomeCatalogPayload {
   const items: SyncCatalogItem[] = rows.map((row, index) => ({
     addon_id: row.isCollection ? '' : row.addonId,
@@ -205,8 +210,13 @@ export function buildSyncPayload(
     collection_id: row.isCollection ? row.collectionId : '',
   }));
 
+  const preserved = findUnmatchedRemoteItems(rows, remotePayload);
+  for (let i = 0; i < preserved.length; i++) {
+    items.push({ ...preserved[i], order: rows.length + i });
+  }
+
   return {
-    hide_unreleased_content: hideUnreleasedContent,
+    hide_unreleased_content: remotePayload?.hide_unreleased_content ?? false,
     items,
   };
 }

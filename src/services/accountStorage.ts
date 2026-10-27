@@ -31,6 +31,10 @@ export function setActiveAccountId(id: string) {
   localStorage.setItem(ACTIVE_ACCOUNT_KEY, id);
 }
 
+export function clearActiveAccountId(): void {
+  localStorage.removeItem(ACTIVE_ACCOUNT_KEY);
+}
+
 export function createDefaultAccount(partial: Partial<ManagedAccount>): ManagedAccount {
   return {
     id: crypto.randomUUID(),

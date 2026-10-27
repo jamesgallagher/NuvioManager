@@ -68,6 +68,7 @@ export const CatalogCard: React.FC<CatalogCardProps> = ({
               onClick={() => onMove(index, 0)}
               disabled={isFirst}
               title="Send to Top"
+              aria-label="Send to Top"
               className="p-1 text-slate-500 hover:text-white disabled:opacity-20 hover:bg-slate-800 rounded transition-colors"
             >
               <ChevronsUp className="w-3.5 h-3.5" />
@@ -76,6 +77,7 @@ export const CatalogCard: React.FC<CatalogCardProps> = ({
               onClick={() => onMove(index, index - 1)}
               disabled={isFirst}
               title="Move Up"
+              aria-label="Move Up"
               className="p-1 text-slate-400 hover:text-white disabled:opacity-20 hover:bg-slate-800 rounded transition-colors"
             >
               <ArrowUp className="w-3.5 h-3.5" />
@@ -87,6 +89,7 @@ export const CatalogCard: React.FC<CatalogCardProps> = ({
               onClick={() => onMove(index, totalCount - 1)}
               disabled={isLast}
               title="Send to Bottom"
+              aria-label="Send to Bottom"
               className="p-1 text-slate-500 hover:text-white disabled:opacity-20 hover:bg-slate-800 rounded transition-colors"
             >
               <ChevronsDown className="w-3.5 h-3.5" />
@@ -95,6 +98,7 @@ export const CatalogCard: React.FC<CatalogCardProps> = ({
               onClick={() => onMove(index, index + 1)}
               disabled={isLast}
               title="Move Down"
+              aria-label="Move Down"
               className="p-1 text-slate-400 hover:text-white disabled:opacity-20 hover:bg-slate-800 rounded transition-colors"
             >
               <ArrowDown className="w-3.5 h-3.5" />
@@ -165,6 +169,8 @@ export const CatalogCard: React.FC<CatalogCardProps> = ({
               />
               <button
                 onClick={handleSaveTitle}
+                title="Save catalog name"
+                aria-label="Save catalog name"
                 className="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
               >
                 <Check className="w-3.5 h-3.5" />
@@ -181,6 +187,7 @@ export const CatalogCard: React.FC<CatalogCardProps> = ({
                   setIsEditingTitle(true);
                 }}
                 title="Rename catalog row on TV"
+                aria-label="Rename catalog row on TV"
                 className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-slate-300 transition-opacity"
               >
                 <Edit2 className="w-3 h-3" />
