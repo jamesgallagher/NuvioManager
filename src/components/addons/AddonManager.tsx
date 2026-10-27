@@ -147,6 +147,7 @@ export const AddonManager: React.FC<AddonManagerProps> = ({
               <button
                 onClick={() => onToggleAddon(addon.url)}
                 title={addon.enabled !== false ? 'Disable Addon' : 'Enable Addon'}
+                aria-label={addon.enabled !== false ? 'Disable Addon' : 'Enable Addon'}
                 className={`p-2 rounded-xl border text-xs font-medium transition-colors ${
                   addon.enabled !== false
                     ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
@@ -159,6 +160,7 @@ export const AddonManager: React.FC<AddonManagerProps> = ({
               <button
                 onClick={() => onRemoveAddon(addon.url)}
                 title="Uninstall Addon"
+                aria-label="Uninstall Addon"
                 className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/20 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />

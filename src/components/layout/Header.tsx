@@ -76,6 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenAddAccount}
               title="Add Managed Account"
+              aria-label="Add Managed Account"
               className="ml-1 p-1 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition-colors"
             >
               <Plus className="w-4 h-4" />

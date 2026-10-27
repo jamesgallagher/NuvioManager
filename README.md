@@ -50,6 +50,28 @@ npm run preview
 
 ---
 
+## Scripts
+
+| Script | Purpose |
+|---|---|
+| `npm run dev` | Start the Vite dev server on `http://localhost:5173`. |
+| `npm run build` | Type-check and build the production bundle. |
+| `npm run preview` | Serve the production build locally. |
+| `npm run lint` | Run ESLint over `src/`. |
+| `npm run typecheck` | Run `tsc --noEmit`. |
+| `npm test` | Run the Vitest suite. |
+
+---
+
+## Security and privacy
+
+- Tokens (access and refresh) and the Supabase anon key are stored in **plain text** in this browser's `localStorage`. Use a trusted browser profile; anyone with access to that profile can read them.
+- **"Delete account"** removes the account and its stored tokens from this browser.
+- Addon URLs are only ever requested from **their own host** (no proxy, no third party).
+- The app needs a Supabase **anon key** to connect; without it, account setup is rejected.
+
+---
+
 ## Extensibility
 
 The codebase is built with modular services ready to be extended:
