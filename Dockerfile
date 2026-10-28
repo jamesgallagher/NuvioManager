@@ -13,6 +13,10 @@ COPY . .
 # (the build stage runs as root) so the entrypoint script is executable.
 RUN chmod +x /app/docker/40-runtime-config.sh
 
+# Shown next to the version in the app footer (set by the CI workflow).
+ARG COMMIT_SHA=
+ENV VITE_APP_COMMIT=${COMMIT_SHA}
+
 RUN npm run build
 
 # Runtime stage: non-root nginx serving the static build on port 8080.

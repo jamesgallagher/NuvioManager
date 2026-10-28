@@ -1,5 +1,6 @@
 import React from 'react';
 import { LayoutGrid, Puzzle, FolderHeart, Settings, ShieldCheck, HelpCircle } from 'lucide-react';
+import { versionLabel } from '../../version';
 
 export type ActiveTab = 'catalogs' | 'addons' | 'collections' | 'settings';
 
@@ -106,7 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
-          <span>v1.0 • Remote Hub</span>
+          <span title={`Nuvio Manager ${versionLabel()}`}>{versionLabel()} • Remote Hub</span>
           <span className="flex items-center hover:text-slate-400 cursor-pointer">
             <HelpCircle className="w-3 h-3 mr-1" />
             Help
