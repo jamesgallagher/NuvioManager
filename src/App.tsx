@@ -29,6 +29,7 @@ export const App: React.FC = () => {
     saveAccount,
     deleteAccount,
     updateAccountTokens,
+    updateProfiles,
   } = useAccounts({ confirmDiscardRef });
 
   // Memoised so useRemoteData's `load` stays stable across renders; the
@@ -46,6 +47,7 @@ export const App: React.FC = () => {
 
   const remote = useRemoteData(activeAccount, {
     onAccountUpdated: handleAccountUpdated,
+    onProfilesLoaded: updateProfiles,
   });
   confirmDiscardRef.current = remote.confirmDiscard;
 
