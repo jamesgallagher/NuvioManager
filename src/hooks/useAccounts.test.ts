@@ -176,3 +176,35 @@ describe('useAccounts', () => {
     expect(stored[0].refreshToken).toBe('new-refresh-token');
   });
 });
+
+describe('useAccounts profiles', () => {
+  it('updateProfiles stores the new list on the account and persists it', () => {
+    saveAccounts([account('a', 'A')]);
+    setActiveAccountId('a');
+    const { result } = renderHook(() => useAccounts());
+    act(() => {});
+
+    const profiles = [{ id: 1, name: 'Main' }, { id: 2, name: 'Daddo' }];
+    act(() => result.current.updateProfiles('a', profiles));
+    expect(result.current.activeAccount?.profiles).toEqual(profiles);
+    expect(JSON.parse(localStorage.getItem('nuvio_managed_accounts_v1')!)[0].profiles).toEqual(profiles);
+    expect(result.current.activeAccount?.activeProfileId).toBe(1);
+  });
+
+  it('updateProfiles ignores an unknown account', () => {
+    saveAccounts([account('a', 'A')]);
+    const { result } = renderHook(() => useAccounts());
+    act(() => {});
+    act(() => result.current.updateProfiles('missing', [{ id: 2, name: 'X' }]));
+    expect(result.current.accounts[0].profiles).toEqual([{ id: 1, name: 'Default', isPrimary: true }]);
+  });
+
+  it('selectProfile ignores a non-integer id (for example NaN)', () => {
+    saveAccounts([account('a', 'A')]);
+    setActiveAccountId('a');
+    const { result } = renderHook(() => useAccounts());
+    act(() => {});
+    act(() => result.current.selectProfile(Number('2aac3849-8c96')));
+    expect(result.current.activeAccount?.activeProfileId).toBe(1);
+  });
+});

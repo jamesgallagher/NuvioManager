@@ -3,14 +3,8 @@ import { ManagedAccount } from '../../types/nuvio';
 import { getSupabaseClient, MissingAnonKeyError, getDefaultAnonKey, DEFAULT_SUPABASE_URL } from '../../services/supabaseClient';
 import { makeId } from '../../services/randomId';
 import { toErrorMessage } from '../../services/errors';
+import { mapProfileRows, pickActiveProfileId } from '../../services/profileService';
 import { X, Key, Mail, Lock, Server, Check, AlertCircle, Loader2 } from 'lucide-react';
-
-interface ProfileRecord {
-  id: number;
-  name?: string;
-  is_primary?: boolean;
-  avatar_color_hex?: string;
-}
 
 interface AddAccountModalProps {
   isOpen: boolean;
@@ -113,14 +107,8 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({
           finalAccessToken
         );
         const { data: profileData } = await authedClient.rpc('sync_pull_profiles');
-        if (Array.isArray(profileData) && profileData.length > 0) {
-          profiles = (profileData as ProfileRecord[]).map((p) => ({
-            id: p.id,
-            name: p.name || `Profile ${p.id}`,
-            isPrimary: p.is_primary,
-            avatarColorHex: p.avatar_color_hex,
-          }));
-        }
+        const mapped = mapProfileRows(profileData);
+        if (mapped.length > 0) profiles = mapped;
       } catch {
         // fallback to default profile 1
         if (!profiles || profiles.length === 0) {
@@ -139,7 +127,7 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({
         refreshToken: finalRefreshToken,
         userId: finalUserId,
         profiles: profiles || [{ id: 1, name: 'Default', isPrimary: true }],
-        activeProfileId: initialAccount?.activeProfileId || 1,
+        activeProfileId: pickActiveProfileId(initialAccount?.activeProfileId, profiles),
         lastSyncedAt: new Date().toISOString(),
       };
 

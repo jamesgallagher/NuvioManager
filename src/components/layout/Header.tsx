@@ -90,7 +90,10 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-slate-400 mr-2">Profile:</span>
               <select
                 value={activeAccount.activeProfileId}
-                onChange={(e) => onSelectProfile(Number(e.target.value))}
+                onChange={(e) => {
+                  const profileId = Number(e.target.value);
+                  if (Number.isInteger(profileId)) onSelectProfile(profileId);
+                }}
                 className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer"
               >
                 {(activeAccount.profiles || [{ id: 1, name: 'Default', isPrimary: true }]).map(

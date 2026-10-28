@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ManagedAccount } from '../types/nuvio';
+import { ManagedAccount, UserProfile } from '../types/nuvio';
 import {
   loadAccounts,
   saveAccounts,
@@ -26,6 +26,7 @@ export interface UseAccountsResult {
   saveAccount: (account: ManagedAccount) => void;
   deleteAccount: (id: string) => void;
   updateAccountTokens: (accountId: string, accessToken: string, refreshToken: string) => void;
+  updateProfiles: (accountId: string, profiles: UserProfile[]) => void;
 }
 
 /**
@@ -68,6 +69,7 @@ export function useAccounts(options: UseAccountsOptions = {}): UseAccountsResult
 
   const selectProfile = useCallback(
     (profileId: number) => {
+      if (!Number.isInteger(profileId)) return;
       if (confirmDiscardRef && !confirmDiscardRef.current()) return;
       const active = activeAccountRef.current;
       if (!active) return;
@@ -135,6 +137,16 @@ export function useAccounts(options: UseAccountsOptions = {}): UseAccountsResult
     []
   );
 
+  const updateProfiles = useCallback((accountId: string, profiles: UserProfile[]) => {
+    const current = accountsRef.current.find((a) => a.id === accountId);
+    if (!current || JSON.stringify(current.profiles) === JSON.stringify(profiles)) return;
+    const next = accountsRef.current.map((a) => (a.id === accountId ? { ...a, profiles } : a));
+    saveAccounts(next);
+    setAccounts(next);
+    const active = activeAccountRef.current;
+    if (active?.id === accountId) setActiveAccount({ ...active, profiles });
+  }, []);
+
   return {
     accounts,
     activeAccount,
@@ -143,5 +155,6 @@ export function useAccounts(options: UseAccountsOptions = {}): UseAccountsResult
     saveAccount,
     deleteAccount,
     updateAccountTokens,
+    updateProfiles,
   };
 }

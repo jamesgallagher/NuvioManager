@@ -4,6 +4,7 @@ import {
   InstalledAddon,
   ManagedAccount,
   SyncHomeCatalogPayload,
+  UserProfile,
 } from '../types/nuvio';
 import {
   pullRemoteCatalogSettings,
@@ -17,6 +18,7 @@ import { fetchRemoteAddons, pushRemoteAddons } from '../services/addonService';
 import { catalogSignature } from '../services/catalogSignature';
 import { toErrorMessage } from '../services/errors';
 import { withSession } from '../services/session';
+import { pullProfiles } from '../services/profileService';
 
 export type RemoteStatus = 'idle' | 'syncing' | 'error' | 'success';
 
@@ -27,6 +29,8 @@ export interface UseRemoteDataOptions {
    * to useAccounts' updateAccountTokens.
    */
   onAccountUpdated?: (account: ManagedAccount) => void;
+  /** Called with the account's profiles as the server reports them. */
+  onProfilesLoaded?: (accountId: string, profiles: UserProfile[]) => void;
 }
 
 export interface UseRemoteDataResult {
@@ -64,6 +68,9 @@ export function useRemoteData(
   options: UseRemoteDataOptions = {}
 ): UseRemoteDataResult {
   const confirmFn = options.confirm || window.confirm;
+  // Read through a ref so an unstable callback can never retrigger a load.
+  const onProfilesLoadedRef = useRef(options.onProfilesLoaded);
+  onProfilesLoadedRef.current = options.onProfilesLoaded;
   const onAccountUpdated = useMemo(
     () => options.onAccountUpdated || (() => {}),
     [options.onAccountUpdated]
@@ -156,6 +163,24 @@ export function useRemoteData(
     };
   }, [clearSuccessTimer]);
 
+  // After a successful load, refresh the profile list (best effort, not
+  // awaited): earlier builds stored the wrong id and profiles can change on
+  // the TV. A failure here never affects the loaded data or the status.
+  const refreshProfiles = useCallback(
+    async (requestId: number) => {
+      const account = activeAccountRef.current;
+      if (!account) return;
+      try {
+        const profiles = await withSession(account, (client) => pullProfiles(client), handleAccountUpdated);
+        if (requestId !== requestIdRef.current) return; // stale
+        if (profiles.length > 0) onProfilesLoadedRef.current?.(account.id, profiles);
+      } catch (err) {
+        console.warn('Could not refresh profiles', err);
+      }
+    },
+    [handleAccountUpdated]
+  );
+
   const load = useCallback(async () => {
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
@@ -186,6 +211,7 @@ export function useRemoteData(
       setBaselineSignature(catalogSignature(enriched));
       setStatusWithTimerClear('success');
       setStatusMessage('Catalogs Loaded');
+      void refreshProfiles(requestId);
     } catch (err) {
       if (requestId !== requestIdRef.current) return; // stale
       console.error('Failed to load remote data', err);
@@ -196,7 +222,7 @@ export function useRemoteData(
         setIsLoading(false);
       }
     }
-  }, [handleAccountUpdated, setStatusWithTimerClear]);
+  }, [handleAccountUpdated, refreshProfiles, setStatusWithTimerClear]);
 
   // Auto-load when the account id or profile id changes; clear old data first so
   // the loading view shows and the previous account's rows are never visible.

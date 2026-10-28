@@ -44,3 +44,38 @@ describe('accountStorage', () => {
     expect(account.profiles).toEqual([{ id: 1, name: 'Default', isPrimary: true }]);
   });
 });
+
+describe('loadAccounts repairs profiles saved by earlier builds', () => {
+  const UUID = '2aac3849-8c96-4d55-9a16-db407c13b5de';
+  const base = {
+    id: 'a',
+    name: 'Acc',
+    email: '',
+    supabaseUrl: 'https://example.invalid',
+    supabaseAnonKey: 'test-anon-key',
+  };
+
+  it('replaces UUID profile ids with the default profile and a numeric active profile', () => {
+    localStorage.setItem(
+      'nuvio_managed_accounts_v1',
+      JSON.stringify([{ ...base, activeProfileId: 1, profiles: [{ id: UUID, name: 'Daddo' }] }])
+    );
+    const [acc] = loadAccounts();
+    expect(acc.profiles).toEqual([{ id: 1, name: 'Default', isPrimary: true }]);
+    expect(acc.activeProfileId).toBe(1);
+  });
+
+  it('fixes a NaN or missing active profile id and leaves good accounts alone', () => {
+    localStorage.setItem(
+      'nuvio_managed_accounts_v1',
+      JSON.stringify([
+        { ...base, id: 'b', activeProfileId: null, profiles: [{ id: 2, name: 'Kid' }] },
+        { ...base, id: 'c', activeProfileId: 3, profiles: [{ id: 1, name: 'A' }, { id: 3, name: 'B' }] },
+      ])
+    );
+    const [b, c] = loadAccounts();
+    expect(b.activeProfileId).toBe(2);
+    expect(c.activeProfileId).toBe(3);
+    expect(c.profiles).toHaveLength(2);
+  });
+});

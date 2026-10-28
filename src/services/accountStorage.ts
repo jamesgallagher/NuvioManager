@@ -1,15 +1,29 @@
 import { ManagedAccount } from '../types/nuvio';
 import { DEFAULT_SUPABASE_URL, getDefaultAnonKey } from './supabaseClient';
 import { makeId } from './randomId';
+import { pickActiveProfileId, sanitizeProfiles } from './profileService';
 
 const STORAGE_KEY = 'nuvio_managed_accounts_v1';
 const ACTIVE_ACCOUNT_KEY = 'nuvio_active_account_id_v1';
+
+// Earlier builds saved a profile's row UUID as its id, which breaks the
+// integer `p_profile_id` calls. Repair stored accounts when they are loaded.
+function repairAccountProfiles(account: ManagedAccount): ManagedAccount {
+  const profiles = sanitizeProfiles(account.profiles);
+  return {
+    ...account,
+    profiles,
+    activeProfileId: pickActiveProfileId(account.activeProfileId, profiles),
+  };
+}
 
 export function loadAccounts(): ManagedAccount[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as ManagedAccount[]).map(repairAccountProfiles);
   } catch (e) {
     console.error('Failed to load accounts from storage', e);
     return [];
