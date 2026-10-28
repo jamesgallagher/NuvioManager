@@ -95,7 +95,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
     <div className="space-y-6">
       {/* Top Banner: Unsaved changes or Remote Status */}
       {hasUnsavedChanges && (
-        <div className="sticky top-[61px] z-20 flex items-center justify-between p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 backdrop-blur-md shadow-xl animate-in fade-in duration-200">
+        <div className="sticky -top-8 z-20 flex items-center justify-between p-4 rounded-2xl bg-[#1d1a13] border border-amber-500/30 shadow-xl animate-in fade-in duration-200">
           <div className="flex items-center space-x-3">
             <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
               <AlertTriangle className="w-5 h-5" />
