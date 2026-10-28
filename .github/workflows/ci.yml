@@ -11,10 +11,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - name: Version bump check
+        if: github.event_name == 'pull_request'
+        run: |
+          # The app footer shows the package.json version, so any PR that changes
+          # the app or its image must bump it (patch for fixes, minor for features).
+          base="origin/${{ github.base_ref }}"
+          changed=$(git diff --name-only "$base"...HEAD)
+          old=$(git show "$base:package.json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
+          new=$(node -p "require('./package.json').version")
+          lock=$(node -p "require('./package-lock.json').version")
+          if [ "$new" != "$lock" ]; then
+            echo "::error::package-lock.json version ($lock) does not match package.json ($new)."
+            exit 1
+          fi
+          if echo "$changed" | grep -qE '^(src/|public/|index\.html$|Dockerfile$|docker/|vite\.config\.ts$)' && [ "$old" = "$new" ]; then
+            echo "::error::Version is still $old; bump it."
+            exit 1
+          fi
+          echo "Version $old -> $new OK"
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck

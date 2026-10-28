@@ -18,6 +18,7 @@ Nuvio Remote Support Hub: a browser app (Vite, React 19, TypeScript, Tailwind, S
 8. Put every temporary file (a PR body, scratch output, downloads) in `C:\Users\james\OpenCode\Testing\temp\`, never in `$env:TEMP` or `AppData\Local\Temp`. Create the folder if it is missing. It sits next to the repo, so nothing in it gets committed.
 9. When the PR is open, finish with the card's **handback report** (the last section of every card) as your last message to James. Report only what you actually ran and saw; write `NOT RUN` for anything you did not run.
 10. A test that fails is reported, not edited to pass and not skipped.
+11. **Bump the version.** The app footer shows the `package.json` version (and the commit in the Docker image), so James can tell which fix he is running. Every PR that changes `src/`, `public/`, `index.html`, `Dockerfile`, `docker/` or `vite.config.ts` must run `npm version patch --no-git-tag-version` (patch for fixes and refactors, `minor` for a new feature, as the card says) in its own commit `CARD-NNN: bump version to X.Y.Z`, and report the new version in the handback. CI fails the PR if you forget. Never create git tags; Claude tags releases after merge.
 
 ## Conventions
 
