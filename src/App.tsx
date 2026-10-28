@@ -66,7 +66,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0b0f17]">
+    <div className="h-screen flex flex-col bg-[#0b0f17]">
       {/* Header Bar */}
       <Header
         accounts={accounts}
@@ -80,7 +80,7 @@ export const App: React.FC = () => {
         statusMessage={remote.statusMessage}
       />
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Navigation Sidebar */}
         <Sidebar
           activeTab={activeTab}
