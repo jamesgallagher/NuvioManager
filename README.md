@@ -67,6 +67,9 @@ npm run preview
 
 - Tokens (access and refresh) and the Supabase anon key are stored in **plain text** in this browser's `localStorage`. Use a trusted browser profile; anyone with access to that profile can read them.
 - **"Delete account"** removes the account and its stored tokens from this browser.
+- The tokens are not encrypted on purpose. A key kept in the same browser as the data would give no real protection, and only a passphrase typed every session would. If you need that, treat the browser profile (or the machine) as the security boundary. The saved password is never stored, only the session tokens.
+- Serve the app over plain HTTP only on a trusted network, or put your own HTTPS reverse proxy in front of it.
+- The **Collections** tab is read only: nothing in this app writes collections to the TV.
 - Addon URLs are only ever requested from **their own host** (no proxy, no third party).
 - The app needs a Supabase **anon key** to connect; without it, account setup is rejected.
 

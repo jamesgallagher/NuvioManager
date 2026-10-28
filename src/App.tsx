@@ -145,7 +145,10 @@ export const App: React.FC = () => {
               )}
 
               {activeTab === 'collections' && (
-                <CollectionsView activeAccount={activeAccount} />
+                <CollectionsView
+                  activeAccount={activeAccount}
+                  onAccountUpdated={handleAccountUpdated}
+                />
               )}
 
               {activeTab === 'settings' && (
